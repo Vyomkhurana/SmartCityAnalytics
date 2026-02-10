@@ -1,0 +1,33 @@
+# R specific
+.Rhistory
+.RData
+.Rproj.user
+*.Rproj
+
+# Data files (can be regenerated)
+data/raw/*.csv
+data/processed/*.csv
+data/processed/*.rds
+
+# Model files (can be retrained)
+models/*.rds
+
+# Output files
+outputs/*.png
+outputs/*.html
+outputs/*.txt
+outputs/*.rds
+outputs/plots/*
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.log
+*~
