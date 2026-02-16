@@ -13,7 +13,8 @@ SmartCityAnalytics/
 │   ├── 01_data_preprocessing.R
 │   ├── 02_exploratory_analysis.R
 │   ├── 03_visualization.R
-│   └── 04_predictive_models.R
+│   ├── 04_predictive_models.R
+│   └── 05_anomaly_detection.R
 ├── models/               # Saved prediction models
 ├── shiny_app/
 │   ├── app.R            # Main Shiny dashboard
@@ -41,6 +42,12 @@ SmartCityAnalytics/
 - Traffic congestion forecasting
 - AQI prediction
 - Energy demand estimation
+
+### Anomaly Detection
+- Z-score based anomaly detection
+- IQR-based outlier identification
+- Time-based pattern anomalies
+- Automated anomaly reports
 
 ### Shiny Dashboard
 - Interactive web interface
@@ -74,6 +81,9 @@ source("scripts/03_visualization.R")
 
 # 4. Train predictive models
 source("scripts/04_predictive_models.R")
+
+# 5. Run anomaly detection
+source("scripts/05_anomaly_detection.R")
 ```
 
 ### Launch Shiny Dashboard
