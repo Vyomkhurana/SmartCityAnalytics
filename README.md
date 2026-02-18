@@ -14,7 +14,8 @@ SmartCityAnalytics/
 │   ├── 02_exploratory_analysis.R
 │   ├── 03_visualization.R
 │   ├── 04_predictive_models.R
-│   └── 05_anomaly_detection.R
+│   ├── 05_anomaly_detection.R
+│   └── 06_clustering_analysis.R
 ├── models/               # Saved prediction models
 ├── shiny_app/
 │   ├── app.R            # Main Shiny dashboard
@@ -48,6 +49,13 @@ SmartCityAnalytics/
 - IQR-based outlier identification
 - Time-based pattern anomalies
 - Automated anomaly reports
+
+### Clustering Analysis
+- Hourly pattern clustering (night, rush hours, midday)
+- Daily activity level classification
+- Weekday hierarchical clustering
+- Principal Component Analysis (PCA)
+- Multi-metric correlation heatmaps
 
 ### Shiny Dashboard
 - Interactive web interface
@@ -84,6 +92,9 @@ source("scripts/04_predictive_models.R")
 
 # 5. Run anomaly detection
 source("scripts/05_anomaly_detection.R")
+
+# 6. Clustering analysis
+source("scripts/06_clustering_analysis.R")
 ```
 
 ### Launch Shiny Dashboard

@@ -38,6 +38,11 @@ required_packages <- c(
   "corrplot",
   "reshape2",
   
+  # Clustering and dimensionality reduction
+  "cluster",
+  "factoextra",
+  "zoo",
+  
   # Report generation
   "rmarkdown",
   "knitr"
