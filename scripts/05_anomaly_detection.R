@@ -75,7 +75,41 @@ master_data <- master_data %>%
   )
 
 # ==========================================
-# 4. TIME-BASED ANOMALY DETECTION
+# 4. MOVING AVERAGE ANOMALY DETECTION
+# ==========================================
+cat("Detecting anomalies using Moving Average method...\n")
+
+detect_ma_anomalies <- function(data, column, window_size = 24, threshold = 2) {
+  values <- data[[column]]
+  n <- length(values)
+  anomalies <- rep(FALSE, n)
+  
+  for (i in (window_size + 1):n) {
+    window_values <- values[(i - window_size):(i - 1)]
+    ma <- mean(window_values, na.rm = TRUE)
+    ma_sd <- sd(window_values, na.rm = TRUE)
+    
+    if (!is.na(ma_sd) && ma_sd > 0) {
+      anomalies[i] <- abs(values[i] - ma) > threshold * ma_sd
+    }
+  }
+  return(anomalies)
+}
+
+# Sort by timestamp for proper moving average calculation
+master_data <- master_data %>% arrange(timestamp)
+
+master_data <- master_data %>%
+  mutate(
+    traffic_anomaly_ma = detect_ma_anomalies(., "total_vehicles"),
+    aqi_anomaly_ma = detect_ma_anomalies(., "avg_AQI"),
+    energy_anomaly_ma = detect_ma_anomalies(., "total_energy_kwh")
+  )
+
+cat("✓ Moving Average anomaly detection complete\n")
+
+# ==========================================
+# 5. TIME-BASED ANOMALY DETECTION
 # ==========================================
 cat("Detecting time-based anomalies...\n")
 
@@ -100,7 +134,7 @@ master_data <- master_data %>%
   )
 
 # ==========================================
-# 5. SUMMARIZE ANOMALIES
+# 6. SUMMARIZE ANOMALIES
 # ==========================================
 cat("\n==================================================\n")
 cat("ANOMALY SUMMARY\n")
@@ -118,6 +152,11 @@ anomaly_summary <- data.frame(
     sum(master_data$aqi_anomaly_iqr, na.rm = TRUE),
     sum(master_data$energy_anomaly_iqr, na.rm = TRUE)
   ),
+  MovingAvg_Anomalies = c(
+    sum(master_data$traffic_anomaly_ma, na.rm = TRUE),
+    sum(master_data$aqi_anomaly_ma, na.rm = TRUE),
+    sum(master_data$energy_anomaly_ma, na.rm = TRUE)
+  ),
   TimeBased_Anomalies = c(
     sum(master_data$traffic_time_anomaly, na.rm = TRUE),
     sum(master_data$aqi_time_anomaly, na.rm = TRUE),
@@ -128,7 +167,7 @@ anomaly_summary <- data.frame(
 print(anomaly_summary)
 
 # ==========================================
-# 6. VISUALIZE ANOMALIES
+# 7. VISUALIZE ANOMALIES
 # ==========================================
 cat("\nGenerating anomaly visualizations...\n")
 
@@ -175,7 +214,7 @@ energy_plot <- ggplot(master_data, aes(x = timestamp, y = total_energy_kwh)) +
 ggsave("outputs/energy_anomalies.png", energy_plot, width = 12, height = 6)
 
 # ==========================================
-# 7. EXPORT ANOMALY DATA
+# 8. EXPORT ANOMALY DATA
 # ==========================================
 cat("Exporting anomaly data...\n")
 
