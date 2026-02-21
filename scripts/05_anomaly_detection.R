@@ -9,6 +9,7 @@ cat("==================================================\n\n")
 library(dplyr)
 library(ggplot2)
 library(plotly)
+library(htmlwidgets)
 
 # Set working directory
 if (basename(getwd()) == "scripts") {
@@ -310,22 +311,125 @@ energy_plot <- ggplot(master_data, aes(x = timestamp, y = total_energy_kwh)) +
 ggsave("outputs/energy_anomalies.png", energy_plot, width = 12, height = 6)
 
 # ==========================================
-# 10. EXPORT ANOMALY DATA
+# 10. INTERACTIVE PLOTLY DASHBOARD
+# ==========================================
+cat("Creating interactive visualizations...\n")
+
+# Severity heatmap by hour and day of week
+master_data$day_of_week <- weekdays(master_data$date)
+master_data$day_of_week <- factor(master_data$day_of_week, 
+                                   levels = c("Monday", "Tuesday", "Wednesday", 
+                                              "Thursday", "Friday", "Saturday", "Sunday"))
+
+severity_heatmap_data <- master_data %>%
+  group_by(day_of_week, hour) %>%
+  summarise(
+    avg_severity = mean(overall_severity, na.rm = TRUE),
+    anomaly_count = sum(overall_severity > 0, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Interactive heatmap
+severity_heatmap <- plot_ly(
+  data = severity_heatmap_data,
+  x = ~hour,
+  y = ~day_of_week,
+  z = ~avg_severity,
+  type = "heatmap",
+  colorscale = list(c(0, "green"), c(0.5, "yellow"), c(1, "red")),
+  hovertemplate = "Hour: %{x}<br>Day: %{y}<br>Avg Severity: %{z:.2f}<extra></extra>"
+) %>%
+  layout(
+    title = "Anomaly Severity Heatmap by Hour and Day",
+    xaxis = list(title = "Hour of Day", dtick = 2),
+    yaxis = list(title = "Day of Week")
+  )
+
+# Interactive combined time series with anomalies
+combined_ts <- plot_ly() %>%
+  add_trace(
+    data = master_data,
+    x = ~timestamp,
+    y = ~total_vehicles,
+    type = "scatter",
+    mode = "lines",
+    name = "Traffic",
+    line = list(color = "steelblue", width = 1),
+    opacity = 0.6
+  ) %>%
+  add_trace(
+    data = filter(master_data, overall_severity >= 3),
+    x = ~timestamp,
+    y = ~total_vehicles,
+    type = "scatter",
+    mode = "markers",
+    name = "High Severity",
+    marker = list(color = "red", size = 8, symbol = "circle"),
+    hovertemplate = "Time: %{x}<br>Vehicles: %{y}<br>Severity: High/Critical<extra></extra>"
+  ) %>%
+  layout(
+    title = "Traffic with High Severity Anomalies",
+    xaxis = list(title = "Time", rangeslider = list(visible = TRUE)),
+    yaxis = list(title = "Total Vehicles"),
+    hovermode = "closest"
+  )
+
+# Severity distribution pie chart
+severity_counts <- as.data.frame(table(master_data$severity_level))
+names(severity_counts) <- c("Level", "Count")
+
+severity_pie <- plot_ly(
+  data = severity_counts,
+  labels = ~Level,
+  values = ~Count,
+  type = "pie",
+  marker = list(colors = c("Critical" = "#d62728", "High" = "#ff7f0e", 
+                            "Medium" = "#ffbb78", "Low" = "#98df8a", "Normal" = "#2ca02c")),
+  hovertemplate = "%{label}: %{value} records (%{percent})<extra></extra>"
+) %>%
+  layout(title = "Anomaly Severity Distribution")
+
+# Save interactive plots as HTML
+htmlwidgets::saveWidget(severity_heatmap, "outputs/severity_heatmap.html", selfcontained = TRUE)
+htmlwidgets::saveWidget(combined_ts, "outputs/interactive_anomalies.html", selfcontained = TRUE)
+htmlwidgets::saveWidget(severity_pie, "outputs/severity_distribution.html", selfcontained = TRUE)
+
+cat("✓ Interactive visualizations saved to outputs/\n")
+
+# ==========================================
+# 11. EXPORT ANOMALY DATA
 # ==========================================
 cat("Exporting anomaly data...\n")
 
-# Save anomaly records
+# Save anomaly records with severity information
 anomaly_records <- master_data %>%
-  filter(traffic_anomaly | aqi_anomaly | energy_anomaly) %>%
-  select(timestamp, date, hour, total_vehicles, avg_AQI, total_energy_kwh,
-         traffic_anomaly, aqi_anomaly, energy_anomaly)
+  filter(overall_severity > 0) %>%
+  select(timestamp, date, hour, day_of_week, total_vehicles, avg_AQI, total_energy_kwh,
+         traffic_anomaly, aqi_anomaly, energy_anomaly, multivariate_anomaly,
+         traffic_severity, aqi_severity, energy_severity, overall_severity, severity_level,
+         mahalanobis_distance)
 
 write.csv(anomaly_records, "outputs/anomaly_records.csv", row.names = FALSE)
 
-# Save summary
+# Save severity summary
+severity_summary <- master_data %>%
+  group_by(severity_level) %>%
+  summarise(
+    count = n(),
+    avg_traffic = mean(total_vehicles, na.rm = TRUE),
+    avg_aqi = mean(avg_AQI, na.rm = TRUE),
+    avg_energy = mean(total_energy_kwh, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+write.csv(severity_summary, "outputs/severity_summary.csv", row.names = FALSE)
+
+# Save method-level summary
 write.csv(anomaly_summary, "outputs/anomaly_summary.csv", row.names = FALSE)
 
 cat("\n✓ Anomaly detection complete!\n")
 cat("  - Anomaly records saved to outputs/anomaly_records.csv\n")
-cat("  - Summary saved to outputs/anomaly_summary.csv\n")
-cat("  - Visualizations saved to outputs/\n")
+cat("  - Severity summary saved to outputs/severity_summary.csv\n")
+cat("  - Method summary saved to outputs/anomaly_summary.csv\n")
+cat("  - Static visualizations saved to outputs/*.png\n")
+cat("  - Interactive visualizations saved to outputs/*.html\n")
