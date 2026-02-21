@@ -174,7 +174,59 @@ print(severity_dist)
 cat("✓ Anomaly severity scoring complete\n")
 
 # ==========================================
-# 7. SUMMARIZE ANOMALIES
+# 7. CORRELATION-BASED MULTIVARIATE ANOMALY DETECTION
+# ==========================================
+cat("Detecting correlation-based anomalies...\n")
+
+# Calculate Mahalanobis distance for multivariate anomaly detection
+# This detects when relationships between metrics deviate from normal patterns
+
+# Select numeric columns for multivariate analysis
+numeric_cols <- c("total_vehicles", "avg_AQI", "total_energy_kwh")
+data_matrix <- master_data[, numeric_cols]
+
+# Remove rows with NA values for distance calculation
+complete_rows <- complete.cases(data_matrix)
+data_complete <- data_matrix[complete_rows, ]
+
+if (nrow(data_complete) > 10) {
+  # Calculate center and covariance
+  center <- colMeans(data_complete)
+  cov_matrix <- cov(data_complete)
+  
+  # Check if covariance matrix is invertible
+  if (det(cov_matrix) > 1e-10) {
+    # Calculate Mahalanobis distance
+    mahal_dist <- mahalanobis(data_complete, center, cov_matrix)
+    
+    # Chi-squared threshold at 99.9% confidence (3 degrees of freedom)
+    threshold <- qchisq(0.999, df = 3)
+    
+    # Initialize with FALSE
+    master_data$multivariate_anomaly <- FALSE
+    master_data$mahalanobis_distance <- NA
+    
+    # Assign values to complete rows
+    master_data$multivariate_anomaly[complete_rows] <- mahal_dist > threshold
+    master_data$mahalanobis_distance[complete_rows] <- mahal_dist
+    
+    cat("  - Multivariate anomalies detected:", sum(master_data$multivariate_anomaly, na.rm = TRUE), "\n")
+    cat("  - Mahalanobis distance threshold:", round(threshold, 2), "\n")
+  } else {
+    master_data$multivariate_anomaly <- FALSE
+    master_data$mahalanobis_distance <- NA
+    cat("  - Warning: Covariance matrix is singular, skipping Mahalanobis distance\n")
+  }
+} else {
+  master_data$multivariate_anomaly <- FALSE
+  master_data$mahalanobis_distance <- NA
+  cat("  - Warning: Insufficient data for multivariate analysis\n")
+}
+
+cat("✓ Correlation-based anomaly detection complete\n")
+
+# ==========================================
+# 8. SUMMARIZE ANOMALIES
 # ==========================================
 cat("\n==================================================\n")
 cat("ANOMALY SUMMARY\n")
@@ -206,8 +258,12 @@ anomaly_summary <- data.frame(
 
 print(anomaly_summary)
 
+# Multivariate anomaly summary
+cat("\nMultivariate Anomalies (Mahalanobis Distance):", 
+    sum(master_data$multivariate_anomaly, na.rm = TRUE), "\n")
+
 # ==========================================
-# 8. VISUALIZE ANOMALIES
+# 9. VISUALIZE ANOMALIES
 # ==========================================
 cat("\nGenerating anomaly visualizations...\n")
 
@@ -254,7 +310,7 @@ energy_plot <- ggplot(master_data, aes(x = timestamp, y = total_energy_kwh)) +
 ggsave("outputs/energy_anomalies.png", energy_plot, width = 12, height = 6)
 
 # ==========================================
-# 9. EXPORT ANOMALY DATA
+# 10. EXPORT ANOMALY DATA
 # ==========================================
 cat("Exporting anomaly data...\n")
 
