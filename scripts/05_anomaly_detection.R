@@ -134,7 +134,47 @@ master_data <- master_data %>%
   )
 
 # ==========================================
-# 6. SUMMARIZE ANOMALIES
+# 6. ANOMALY SEVERITY SCORING
+# ==========================================
+cat("Calculating anomaly severity scores...\n")
+
+# Calculate severity based on how many methods flagged the anomaly
+master_data <- master_data %>%
+  mutate(
+    # Count how many methods flagged each type of anomaly
+    traffic_severity = as.integer(traffic_anomaly) + 
+                       as.integer(traffic_anomaly_iqr) + 
+                       as.integer(traffic_anomaly_ma) + 
+                       as.integer(traffic_time_anomaly),
+    aqi_severity = as.integer(aqi_anomaly) + 
+                   as.integer(aqi_anomaly_iqr) + 
+                   as.integer(aqi_anomaly_ma) + 
+                   as.integer(aqi_time_anomaly),
+    energy_severity = as.integer(energy_anomaly) + 
+                      as.integer(energy_anomaly_iqr) + 
+                      as.integer(energy_anomaly_ma) + 
+                      as.integer(energy_time_anomaly),
+    # Overall severity score (max across all metrics)
+    overall_severity = pmax(traffic_severity, aqi_severity, energy_severity),
+    # Severity level classification
+    severity_level = case_when(
+      overall_severity == 0 ~ "Normal",
+      overall_severity == 1 ~ "Low",
+      overall_severity == 2 ~ "Medium",
+      overall_severity == 3 ~ "High",
+      overall_severity >= 4 ~ "Critical"
+    )
+  )
+
+# Severity distribution
+severity_dist <- table(master_data$severity_level)
+cat("\nSeverity Level Distribution:\n")
+print(severity_dist)
+
+cat("✓ Anomaly severity scoring complete\n")
+
+# ==========================================
+# 7. SUMMARIZE ANOMALIES
 # ==========================================
 cat("\n==================================================\n")
 cat("ANOMALY SUMMARY\n")
@@ -167,7 +207,7 @@ anomaly_summary <- data.frame(
 print(anomaly_summary)
 
 # ==========================================
-# 7. VISUALIZE ANOMALIES
+# 8. VISUALIZE ANOMALIES
 # ==========================================
 cat("\nGenerating anomaly visualizations...\n")
 
@@ -214,7 +254,7 @@ energy_plot <- ggplot(master_data, aes(x = timestamp, y = total_energy_kwh)) +
 ggsave("outputs/energy_anomalies.png", energy_plot, width = 12, height = 6)
 
 # ==========================================
-# 8. EXPORT ANOMALY DATA
+# 9. EXPORT ANOMALY DATA
 # ==========================================
 cat("Exporting anomaly data...\n")
 
