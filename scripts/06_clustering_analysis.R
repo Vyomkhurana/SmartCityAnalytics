@@ -342,6 +342,117 @@ loadings_plot <- ggplot(loadings_df, aes(x = PC1, y = PC2)) +
 ggsave("outputs/pca_loadings.png", loadings_plot, width = 10, height = 8)
 
 # ==========================================
+# 6B. DBSCAN CLUSTERING FOR ANOMALY DETECTION
+# ==========================================
+cat("\n==================================================\n")
+cat("DBSCAN Clustering for Anomaly Detection\n")
+cat("==================================================\n\n")
+
+library(dbscan)
+
+# Prepare hourly data for DBSCAN (traffic, AQI, energy)
+dbscan_data <- master_data %>%
+  select(timestamp, hour, total_vehicles, avg_AQI, total_energy_kwh) %>%
+  na.omit()
+
+dbscan_features <- dbscan_data %>%
+  select(total_vehicles, avg_AQI, total_energy_kwh) %>%
+  scale()
+
+# Determine optimal eps using k-nearest neighbor distance plot
+knn_dist <- kNNdist(dbscan_features, k = 4)
+knn_dist_sorted <- sort(knn_dist)
+
+# Plot k-distance graph
+png("outputs/dbscan_knn_distance.png", width = 800, height = 600)
+plot(knn_dist_sorted, type = "l", 
+     main = "k-NN Distance Plot for DBSCAN eps Selection",
+     xlab = "Points (sorted by distance)", 
+     ylab = "4-NN Distance",
+     col = "steelblue", lwd = 2)
+abline(h = 1.5, col = "red", lty = 2)
+legend("bottomright", legend = "eps = 1.5", col = "red", lty = 2)
+dev.off()
+
+# Run DBSCAN with chosen parameters
+eps_val <- 1.5
+minPts_val <- 5
+
+dbscan_result <- dbscan(dbscan_features, eps = eps_val, minPts = minPts_val)
+
+dbscan_data$cluster <- factor(dbscan_result$cluster)
+
+# Cluster 0 represents noise/anomalies
+n_anomalies <- sum(dbscan_result$cluster == 0)
+n_clusters <- length(unique(dbscan_result$cluster)) - 1  # Exclude noise cluster
+
+cat("DBSCAN Results:\n")
+cat("  - eps:", eps_val, "\n")
+cat("  - minPts:", minPts_val, "\n")
+cat("  - Clusters found:", n_clusters, "\n")
+cat("  - Anomalies detected:", n_anomalies, "(", 
+    round(n_anomalies / nrow(dbscan_data) * 100, 2), "%)\n\n")
+
+# Analyze anomalies
+anomalies <- dbscan_data %>%
+  filter(cluster == 0) %>%
+  mutate(
+    traffic_zscore = (total_vehicles - mean(dbscan_data$total_vehicles)) / sd(dbscan_data$total_vehicles),
+    aqi_zscore = (avg_AQI - mean(dbscan_data$avg_AQI)) / sd(dbscan_data$avg_AQI),
+    energy_zscore = (total_energy_kwh - mean(dbscan_data$total_energy_kwh)) / sd(dbscan_data$total_energy_kwh)
+  )
+
+if (nrow(anomalies) > 0) {
+  cat("Anomaly characteristics:\n")
+  cat("  - Hour distribution:\n")
+  print(table(anomalies$hour))
+  
+  cat("\n  - Extreme anomalies (high traffic + high AQI):\n")
+  extreme_anomalies <- anomalies %>%
+    filter(traffic_zscore > 2 | aqi_zscore > 2) %>%
+    arrange(desc(traffic_zscore))
+  
+  if (nrow(extreme_anomalies) > 0) {
+    print(head(extreme_anomalies %>% select(timestamp, hour, total_vehicles, avg_AQI, total_energy_kwh), 10))
+  }
+}
+
+# Visualize DBSCAN results
+dbscan_plot <- ggplot(dbscan_data, aes(x = total_vehicles, y = avg_AQI, color = cluster)) +
+  geom_point(alpha = 0.6, size = 2) +
+  scale_color_manual(values = c("0" = "red", "1" = "steelblue", "2" = "forestgreen", 
+                                "3" = "orange", "4" = "purple"),
+                     labels = function(x) ifelse(x == "0", "Anomaly", paste("Cluster", x))) +
+  labs(title = "DBSCAN Clustering: Traffic vs Air Quality",
+       subtitle = paste("Anomalies detected:", n_anomalies, "points"),
+       x = "Total Vehicles",
+       y = "Average AQI",
+       color = "Cluster") +
+  theme_minimal()
+
+ggsave("outputs/dbscan_clustering.png", dbscan_plot, width = 10, height = 8)
+
+# 3D visualization of DBSCAN results
+dbscan_3d <- plot_ly(dbscan_data, 
+                     x = ~total_vehicles, 
+                     y = ~avg_AQI, 
+                     z = ~total_energy_kwh,
+                     color = ~cluster,
+                     colors = c("red", "steelblue", "forestgreen", "orange"),
+                     type = "scatter3d", 
+                     mode = "markers",
+                     marker = list(size = 3, opacity = 0.6)) %>%
+  layout(title = "DBSCAN Clustering (3D)",
+         scene = list(
+           xaxis = list(title = "Traffic"),
+           yaxis = list(title = "AQI"),
+           zaxis = list(title = "Energy (kWh)")
+         ))
+
+htmlwidgets::saveWidget(dbscan_3d, "outputs/dbscan_3d.html", selfcontained = TRUE)
+cat("✓ Interactive 3D DBSCAN plot saved to outputs/dbscan_3d.html\n")
+
+# ==========================================
 # 7. SAVE RESULTS
 # ==========================================
 cat("\n==================================================\n")
@@ -357,7 +468,10 @@ clustering_results <- list(
   weekday_patterns = weekday_patterns,
   correlation_matrix = cor_matrix,
   pca_result = pca_result,
-  pca_variance = var_explained
+  pca_variance = var_explained,
+  dbscan_result = dbscan_result,
+  dbscan_data = dbscan_data,
+  anomalies = anomalies
 )
 
 saveRDS(clustering_results, "data/processed/clustering_results.rds")
@@ -387,6 +501,11 @@ cat("PCA INSIGHTS:\n")
 cat("  - First 2 components explain", round(sum(var_explained[2, 1:2]) * 100, 1), "% of variance\n")
 cat("  - Clear separation between weekday and weekend patterns\n\n")
 
+cat("DBSCAN ANOMALY DETECTION:\n")
+cat("  - Detected", n_anomalies, "anomalous time periods\n")
+cat("  - Anomaly rate:", round(n_anomalies / nrow(dbscan_data) * 100, 2), "%\n")
+cat("  - Useful for identifying unusual traffic/pollution events\n\n")
+
 cat("Generated visualizations saved to outputs/:\n")
 cat("  - hourly_elbow_plot.png\n")
 cat("  - hourly_cluster_plot.png\n")
@@ -395,6 +514,9 @@ cat("  - correlation_heatmap.png\n")
 cat("  - weekday_dendrogram.png\n")
 cat("  - pca_plot.png\n")
 cat("  - pca_loadings.png\n")
+cat("  - dbscan_clustering.png\n")
+cat("  - dbscan_knn_distance.png\n")
+cat("  - dbscan_3d.html (interactive)\n")
 
 cat("\n==================================================\n")
 cat("Clustering analysis complete!\n")
