@@ -478,7 +478,31 @@ saveRDS(clustering_results, "data/processed/clustering_results.rds")
 cat("✓ Clustering results saved to data/processed/clustering_results.rds\n")
 
 # ==========================================
-# 8. SUMMARY REPORT
+# 8. SILHOUETTE ANALYSIS
+# ==========================================
+cat("\n==================================================\n")
+cat("Silhouette Analysis for Cluster Validation\n")
+cat("==================================================\n\n")
+
+# Calculate silhouette scores for hourly clustering
+sil_hourly <- silhouette(hourly_kmeans$cluster, dist(hourly_scaled))
+avg_sil_hourly <- mean(sil_hourly[, 3])
+cat("Hourly clustering silhouette score:", round(avg_sil_hourly, 3), "\n")
+
+# Calculate silhouette scores for daily clustering  
+sil_daily <- silhouette(daily_kmeans$cluster, dist(daily_scaled))
+avg_sil_daily <- mean(sil_daily[, 3])
+cat("Daily clustering silhouette score:", round(avg_sil_daily, 3), "\n")
+
+# Silhouette interpretation
+cat("\nInterpretation (silhouette score ranges from -1 to 1):\n")
+cat("  > 0.7: Strong clustering structure\n")
+cat("  0.5-0.7: Reasonable clustering structure\n")
+cat("  0.25-0.5: Weak clustering structure\n")
+cat("  < 0.25: No substantial structure\n\n")
+
+# ==========================================
+# 9. SUMMARY REPORT
 # ==========================================
 cat("\n==================================================\n")
 cat("CLUSTERING ANALYSIS SUMMARY\n")
