@@ -545,3 +545,47 @@ cat("  - dbscan_3d.html (interactive)\n")
 cat("\n==================================================\n")
 cat("Clustering analysis complete!\n")
 cat("==================================================\n")
+
+# ==========================================
+# 10. SILHOUETTE SCORE VISUALIZATION
+# ==========================================
+cat("\n==================================================\n")
+cat("Silhouette Score Analysis\n")
+cat("==================================================\n\n")
+
+# Calculate silhouette scores for each k value
+silhouette_scores <- sapply(2:8, function(k) {
+  km <- kmeans(hourly_scaled, centers = k, nstart = 25)
+  ss <- silhouette(km$cluster, dist(hourly_scaled))
+  mean(ss[, 3])
+})
+
+# Create silhouette score comparison plot
+silhouette_data <- data.frame(
+  k = 2:8,
+  silhouette_score = silhouette_scores
+)
+
+silhouette_comparison_plot <- ggplot(silhouette_data, aes(x = k, y = silhouette_score)) +
+  geom_line(color = "#2E86AB", size = 1.2) +
+  geom_point(color = "#2E86AB", size = 4) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "#A23B72", alpha = 0.7) +
+  annotate("text", x = 7.5, y = 0.52, label = "Good threshold", color = "#A23B72", size = 3) +
+  labs(
+    title = "Silhouette Score by Number of Clusters",
+    subtitle = "Higher scores indicate better-defined clusters",
+    x = "Number of Clusters (k)",
+    y = "Average Silhouette Score"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(color = "gray50")
+  ) +
+  scale_x_continuous(breaks = 2:8)
+
+ggsave("outputs/silhouette_comparison.png", silhouette_comparison_plot, width = 10, height = 6)
+
+cat("✓ Silhouette comparison plot saved to outputs/silhouette_comparison.png\n")
+cat("  Best k value:", silhouette_data$k[which.max(silhouette_data$silhouette_score)], 
+    "(score:", round(max(silhouette_scores), 3), ")\n")
