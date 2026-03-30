@@ -77,6 +77,33 @@ source("setup.R")
 
 ### Run Data Pipeline
 
+Run the complete workflow in one command:
+
+```r
+source("run_pipeline.R")
+```
+
+On Windows PowerShell, use the launcher script for setup + pipeline + optional dashboard:
+
+```powershell
+.\run_project.ps1
+```
+
+Common options:
+
+```powershell
+# Run setup + pipeline + launch dashboard
+.\run_project.ps1 -LaunchDashboard
+
+# Skip package installation (faster reruns)
+.\run_project.ps1 -SkipSetup
+
+# Launch dashboard only (after artifacts already exist)
+.\run_project.ps1 -SkipSetup -SkipPipeline -LaunchDashboard
+```
+
+Or run each step manually:
+
 ```r
 # 1. Preprocess data
 source("scripts/01_data_preprocessing.R")
