@@ -328,7 +328,7 @@ loadings_df <- data.frame(
 )
 
 loadings_plot <- ggplot(loadings_df, aes(x = PC1, y = PC2)) +
-  geom_segment(aes(xend = 0, yend = 0), arrow = arrow(length = unit(0.2, "cm")),
+  geom_segment(aes(xend = 0, yend = 0), arrow = arrow(length = grid::unit(0.2, "cm")),
                color = "steelblue", size = 1) +
   geom_text(aes(label = variable), hjust = -0.1, vjust = 0.5, size = 4) +
   geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +

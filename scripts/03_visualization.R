@@ -7,8 +7,10 @@ cat("==================================================\n\n")
 
 # Load required libraries
 library(dplyr)
+library(tidyr)
 library(ggplot2)
 library(plotly)
+library(htmlwidgets)
 library(gridExtra)
 library(RColorBrewer)
 library(viridis)

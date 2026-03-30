@@ -18,6 +18,16 @@ if (basename(getwd()) == "scripts") {
   setwd("..")
 }
 
+if (!dir.exists("models")) {
+  dir.create("models", recursive = TRUE)
+}
+if (!dir.exists("outputs")) {
+  dir.create("outputs", recursive = TRUE)
+}
+if (!dir.exists("outputs/plots")) {
+  dir.create("outputs/plots", recursive = TRUE)
+}
+
 # Set seed for reproducibility
 set.seed(42)
 

@@ -16,6 +16,7 @@ required_packages <- c(
   # Visualization
   "ggplot2",
   "plotly",
+  "htmlwidgets",
   "leaflet",
   "RColorBrewer",
   "gridExtra",
@@ -41,6 +42,7 @@ required_packages <- c(
   # Clustering and dimensionality reduction
   "cluster",
   "factoextra",
+  "dbscan",
   "zoo",
   
   # Report generation
