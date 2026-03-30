@@ -6,6 +6,17 @@ library(lubridate)
 
 set.seed(42)
 
+# Resolve output directory so this script works when sourced from either
+# the project root or from data/raw.
+output_dir <- if (basename(getwd()) == "raw") "." else file.path("data", "raw")
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, recursive = TRUE)
+}
+
+raw_path <- function(filename) {
+  file.path(output_dir, filename)
+}
+
 # Generate date-time sequence for one year
 dates <- seq(from = as.POSIXct("2025-01-01 00:00:00"),
              to = as.POSIXct("2025-12-31 23:00:00"),
@@ -42,7 +53,7 @@ traffic_data <- data.frame(
 # Make vehicle counts positive
 traffic_data$vehicle_count <- pmax(traffic_data$vehicle_count, 20)
 
-write.csv(traffic_data, "traffic_data.csv", row.names = FALSE)
+write.csv(traffic_data, raw_path("traffic_data.csv"), row.names = FALSE)
 cat("✓ traffic_data.csv created\n")
 
 # ==========================================
@@ -100,7 +111,7 @@ air_quality_data$AQI_category <- cut(
   right = FALSE
 )
 
-write.csv(air_quality_data, "air_quality_data.csv", row.names = FALSE)
+write.csv(air_quality_data, raw_path("air_quality_data.csv"), row.names = FALSE)
 cat("✓ air_quality_data.csv created\n")
 
 # ==========================================
@@ -132,7 +143,7 @@ energy_data <- data.frame(
 # Add cost calculation
 energy_data$cost_usd <- energy_data$energy_consumption_kwh * 0.12
 
-write.csv(energy_data, "energy_data.csv", row.names = FALSE)
+write.csv(energy_data, raw_path("energy_data.csv"), row.names = FALSE)
 cat("✓ energy_data.csv created\n")
 
 # ==========================================
@@ -168,7 +179,7 @@ weather_data$condition <- sample(
   prob = c(0.5, 0.3, 0.15, 0.05)
 )
 
-write.csv(weather_data, "weather_data.csv", row.names = FALSE)
+write.csv(weather_data, raw_path("weather_data.csv"), row.names = FALSE)
 cat("✓ weather_data.csv created\n")
 
 cat("\n==================================================\n")

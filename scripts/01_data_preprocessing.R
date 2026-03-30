@@ -62,7 +62,7 @@ traffic_clean <- traffic_raw %>%
     hour = hour(timestamp),
     day = day(timestamp),
     month = month(timestamp),
-    weekday = wday(timestamp, label = TRUE),
+    weekday = lubridate::wday(timestamp, label = TRUE),
     date = as.Date(timestamp),
     is_weekend = weekday %in% c("Sat", "Sun"),
     time_of_day = case_when(
@@ -98,7 +98,7 @@ air_quality_clean <- air_quality_raw %>%
     hour = hour(timestamp),
     day = day(timestamp),
     month = month(timestamp),
-    weekday = wday(timestamp, label = TRUE),
+    weekday = lubridate::wday(timestamp, label = TRUE),
     date = as.Date(timestamp),
     is_weekend = weekday %in% c("Sat", "Sun")
   ) %>%
@@ -126,7 +126,7 @@ energy_clean <- energy_raw %>%
     hour = hour(timestamp),
     day = day(timestamp),
     month = month(timestamp),
-    weekday = wday(timestamp, label = TRUE),
+    weekday = lubridate::wday(timestamp, label = TRUE),
     date = as.Date(timestamp),
     is_weekend = weekday %in% c("Sat", "Sun"),
     season = case_when(
