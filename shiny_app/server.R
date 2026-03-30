@@ -13,6 +13,49 @@ library(lubridate)
 # ==========================================
 
 server <- function(input, output, session) {
+  # Fallback loading so server works even if app-level objects are not in scope.
+  if (!exists("master_data", inherits = TRUE) ||
+      !exists("traffic_clean", inherits = TRUE) ||
+      !exists("air_quality_clean", inherits = TRUE) ||
+      !exists("energy_clean", inherits = TRUE)) {
+    project_root <- if (file.exists("data/processed/master_data.rds")) "." else ".."
+
+    master_data <- readRDS(file.path(project_root, "data", "processed", "master_data.rds"))
+    traffic_clean <- read.csv(file.path(project_root, "data", "processed", "traffic_clean.csv"))
+    air_quality_clean <- read.csv(file.path(project_root, "data", "processed", "air_quality_clean.csv"))
+    energy_clean <- read.csv(file.path(project_root, "data", "processed", "energy_clean.csv"))
+
+    master_data$timestamp <- as.POSIXct(master_data$timestamp)
+    master_data$date <- as.Date(master_data$date)
+    traffic_clean$timestamp <- as.POSIXct(traffic_clean$timestamp)
+    air_quality_clean$timestamp <- as.POSIXct(air_quality_clean$timestamp)
+    energy_clean$timestamp <- as.POSIXct(energy_clean$timestamp)
+
+    traffic_model_path <- file.path(project_root, "models", "traffic_model.rds")
+    aqi_model_path <- file.path(project_root, "models", "aqi_model.rds")
+    energy_model_path <- file.path(project_root, "models", "energy_model.rds")
+    model_results_path <- file.path(project_root, "outputs", "model_results.rds")
+
+    models_available <- file.exists(traffic_model_path) && file.exists(aqi_model_path) && file.exists(energy_model_path)
+    model_results_available <- file.exists(model_results_path)
+
+    if (models_available) {
+      traffic_model <- readRDS(traffic_model_path)
+      aqi_model <- readRDS(aqi_model_path)
+      energy_model <- readRDS(energy_model_path)
+    }
+  }
+
+  if (!exists("models_available", inherits = TRUE)) {
+    models_available <- FALSE
+  }
+  if (!exists("model_results_available", inherits = TRUE)) {
+    model_results_available <- FALSE
+  }
+  if (!exists("model_results_path", inherits = TRUE)) {
+    project_root <- if (file.exists("outputs/model_results.rds")) "." else ".."
+    model_results_path <- file.path(project_root, "outputs", "model_results.rds")
+  }
   
   # ==========================================
   # DYNAMIC FILTER UI ELEMENTS
@@ -201,7 +244,7 @@ server <- function(input, output, session) {
   
   output$traffic_heatmap <- renderPlotly({
     data <- traffic_clean %>%
-      mutate(weekday_short = wday(timestamp, label = TRUE)) %>%
+      mutate(weekday_short = lubridate::wday(timestamp, label = TRUE)) %>%
       group_by(hour, weekday_short) %>%
       summarise(avg_vehicles = mean(vehicle_count, na.rm = TRUE), .groups = "drop")
     
@@ -463,14 +506,14 @@ server <- function(input, output, session) {
   })
   
   output$model_performance <- renderTable({
-    if (!models_available) {
+    if (!models_available || !model_results_available) {
       data.frame(
         Model = c("Traffic", "AQI", "Energy"),
         Status = rep("Not Available", 3),
-        Note = rep("Run predictive models script first", 3)
+        Note = rep("Run scripts/04_predictive_models.R first", 3)
       )
     } else {
-      model_results <- readRDS("../outputs/model_results.rds")
+      model_results <- readRDS(model_results_path)
       data.frame(
         Model = c("Traffic Prediction", "AQI Prediction", "Energy Prediction"),
         RMSE = c(
@@ -493,15 +536,15 @@ server <- function(input, output, session) {
   }, striped = TRUE, hover = TRUE, bordered = TRUE)
   
   output$prediction_comparison <- renderPlot({
-    if (!models_available) {
+    if (!models_available || !model_results_available) {
       plot.new()
-      text(0.5, 0.5, "Models not available.\nRun: source('scripts/04_predictive_models.R')",
+      text(0.5, 0.5, "Models/results not available.\nRun: source('scripts/04_predictive_models.R')",
           cex = 1.5, col = "red")
       return()
     }
     
     # Show sample predictions vs actual from test set
-    model_results <- readRDS("../outputs/model_results.rds")
+    model_results <- readRDS(model_results_path)
     
     par(mfrow = c(1, 3))
     
@@ -542,6 +585,7 @@ server <- function(input, output, session) {
   output$data_table <- renderDT({
     datatable(
       data_to_show(),
+      extensions = c("Buttons"),
       options = list(
         pageLength = 25,
         scrollX = TRUE,
