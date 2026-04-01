@@ -310,8 +310,8 @@ ui <- dashboardPage(
             h4("Technology Stack:"),
             p("Built with R, Shiny, ggplot2, plotly, and machine learning libraries."),
             h4("Data Sources:"),
-            p("This dashboard uses synthetic data generated for demonstration purposes. 
-              In a production environment, it would connect to real-time city sensors and APIs.")
+            p("This dashboard is designed for real city datasets (traffic, air quality, energy, and weather). 
+              For academic submission, document the city name, time period, and official data sources used.")
           )
         ),
         
