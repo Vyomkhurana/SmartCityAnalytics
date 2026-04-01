@@ -138,17 +138,34 @@ R -e "shiny::runApp('shiny_app')"
 
 ## Datasets
 
-The system uses the following data sources:
-- Traffic flow/congestion data
-- Air pollution (AQI, PM2.5, PM10, NO2)
-- Energy consumption
-- Weather data (optional)
-- Public transport data (optional)
+This project is intended for real city data. Place the following files in `data/raw/`:
+- `traffic_data.csv`
+- `air_quality_data.csv`
+- `energy_data.csv`
+- `weather_data.csv`
+
+Recommended submission metadata (for teacher review):
+- City name
+- Data collection period
+- Data source links (municipal portal, national open data, sensor APIs)
+
+Expected content by file:
+- `traffic_data.csv`: timestamp, zone, vehicle_count, average_speed, congestion_level
+- `air_quality_data.csv`: timestamp, station_id, PM25, PM10, NO2, O3, AQI, AQI_category, temperature, humidity
+- `energy_data.csv`: timestamp, building_type, energy_consumption_kwh, peak_demand_kw, renewable_percent, cost_usd
+- `weather_data.csv`: timestamp, temperature, humidity, wind_speed, precipitation_mm, pressure_hpa, condition
 
 ## Requirements
 
 - R >= 4.0
 - See `setup.R` for complete package list
+
+## Teacher Submission Guidance
+
+Use `CITY_REPORT_TEMPLATE.md` to document:
+- which real city you analyzed,
+- where the data came from,
+- and how each recommendation is supported by output evidence.
 
 ## Author
 
