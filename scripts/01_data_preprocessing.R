@@ -17,12 +17,24 @@ if (basename(getwd()) == "scripts") {
 }
 
 # ==========================================
-# 1. GENERATE SAMPLE DATA (if not exists)
+# 1. VALIDATE REAL INPUT DATA
 # ==========================================
-if (!file.exists("data/raw/traffic_data.csv")) {
-  cat("Sample data not found. Generating...\n")
-  source("data/raw/generate_sample_data.R")
-  cat("\n")
+required_raw_files <- c(
+  "data/raw/traffic_data.csv",
+  "data/raw/air_quality_data.csv",
+  "data/raw/energy_data.csv",
+  "data/raw/weather_data.csv"
+)
+
+missing_raw_files <- required_raw_files[!file.exists(required_raw_files)]
+if (length(missing_raw_files) > 0) {
+  stop(
+    paste0(
+      "Missing required real-city input files:\n- ",
+      paste(missing_raw_files, collapse = "\n- "),
+      "\n\nPlace real datasets in data/raw before running preprocessing."
+    )
+  )
 }
 
 # ==========================================
