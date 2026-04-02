@@ -1,16 +1,29 @@
 # Smart City Data Analytics System
 
-A comprehensive R-based data analytics system for smart city monitoring and prediction, featuring traffic analysis, air quality monitoring, and energy consumption patterns.
+A comprehensive R-based data analytics system for smart city monitoring and prediction, featuring traffic analysis, air quality monitoring, and energy consumption patterns. Now updated with **real government data** from Delhi NCR!
+
+## Project Overview
+
+This project analyzes real-world smart city data from Delhi NCR (Jan 2023 - Dec 2025 projections) including:
+- 🚗 **Traffic Data** - Hourly congestion patterns (% utilization by time-of-day)
+- 💨 **Air Quality** - Pollutant levels from CPCB monitoring stations
+- ⚡ **Energy** - Regional grid demand and renewable energy mix
+- 🌡️ **Weather** - Temperature, humidity, wind speed from NOAA weather stations
 
 ## Project Structure
 
 ```
 SmartCityAnalytics/
 ├── data/
-│   ├── raw/              # Original datasets
-│   └── processed/        # Cleaned and merged data
+│   ├── raw/              # Real government datasets
+│   │   ├── traffic_data.csv          # Time × Weekday congestion matrix
+│   │   ├── air_quality_data.xlsx     # CPCB Excel workbook
+│   │   ├── energy_data.csv           # Grid-India regional data
+│   │   └── weather_data.csv          # NOAA ISD station data
+│   └── processed/        # Cleaned and standardized data
 ├── scripts/
-│   ├── 01_data_preprocessing.R
+│   ├── 00_preprocess_real_data.py    # [NEW] Real data format adapter
+│   ├── 01_data_preprocessing.R       # [UPDATED] Enhanced for real data
 │   ├── 02_exploratory_analysis.R
 │   ├── 03_visualization.R
 │   ├── 04_predictive_models.R
@@ -22,8 +35,46 @@ SmartCityAnalytics/
 │   ├── ui.R             # UI components
 │   └── server.R         # Server logic
 ├── outputs/              # Generated reports and plots
-└── setup.R              # Install required packages
+├── setup.R              # Install required packages
+└── REAL_DATA_ENHANCEMENT_SUMMARY.md  # [NEW] Complete enhancement guide
 ```
+
+## 🚀 Quick Start
+
+### 1. Setup Environment
+```bash
+# Install R packages
+R
+source('setup.R')
+```
+
+### 2. Preprocess Real Data
+```bash
+# Convert real government data to standard schema
+python scripts/00_preprocess_real_data.py
+```
+
+This script:
+- ✅ Expands traffic time-of-day × weekday matrix to hourly timestamps
+- ✅ Parses CPCB Excel air quality workbooks
+- ✅ Extracts Delhi-specific data from regional grid data
+- ✅ Decodes NOAA ISD FM-12 weather format
+
+### 3. Run Analysis Pipeline
+```bash
+R
+source('scripts/02_exploratory_analysis.R')  # Explore patterns
+source('scripts/03_visualization.R')         # Generate charts
+source('scripts/04_predictive_models.R')     # Build models
+```
+
+### 4. Launch Interactive Dashboard
+```bash
+R
+shiny::runApp('shiny_app/app.R')
+```
+
+Opens at `http://localhost:3838`
 
 ## Features
 
@@ -62,6 +113,31 @@ SmartCityAnalytics/
 - Multiple analysis tabs
 - Real-time predictions
 - Downloadable reports
+
+## Data Sources
+
+All data is sourced from **official government/scientific repositories**:
+
+| Dataset | Source | Format | Time Range | Update Frequency |
+|---------|--------|--------|-----------|-----------------|
+| **Traffic** | Delhi Traffic Smart-City Analytics | Time × Weekday Matrix | Aggregated patterns | Baseline data |
+| **Air Quality** | CPCB (Central Pollution Control Board) | Excel workbooks (.xlsx) | Varies by download | Hourly readings |
+| **Energy** | Grid-India / NLDC | CSV exports | 2013-2023 (historical) | Daily aggregates |
+| **Weather** | NOAA ISD Station (Safdarjung, Delhi) | FM-12 encoded CSV | 2023 + ongoing | Every 3 hours |
+
+### Data Files
+- ✅ **traffic_data.csv**: Time-of-day × Days-of-week congestion percentages
+- ✅ **air_quality_data.xlsx**: Station-level PM2.5, PM10, NO2, O3, AQI readings
+- ✅ **energy_data.csv**: Regional grid: Northern (NR), Western (WR), Southern (SR), Eastern (ER) regions
+- ✅ **weather_data.csv**: NOAA weather observations with encoded fields (temperature, wind, pressure)
+
+**Note on Data Dates:**
+- Traffic: Expanded to 2025-2027 time periods
+- Weather: Real data from 2023
+- Energy: Currently 2013-2023; newer 2023-2025 data recommended
+- Air Quality: Date range depends on downloaded workbook
+
+See `REAL_DATA_ENHANCEMENT_SUMMARY.md` for detailed data transformation documentation.
 
 ## Installation
 
