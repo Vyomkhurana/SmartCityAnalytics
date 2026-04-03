@@ -227,6 +227,8 @@ ui <- dashboardPage(
           box(
             title = "Prediction Input", status = "info", solidHeader = TRUE,
             width = 12,
+            selectInput("pred_area", "Delhi Area:",
+                       choices = c("All"), selected = "All"),
             sliderInput("pred_hour", "Hour of Day:", min = 0, max = 23, value = 12),
             checkboxInput("pred_weekend", "Weekend", value = FALSE),
             sliderInput("pred_temp", "Temperature (C):", min = -10, max = 40, value = 20),

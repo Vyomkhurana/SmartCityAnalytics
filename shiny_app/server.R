@@ -56,6 +56,110 @@ server <- function(input, output, session) {
     project_root <- if (file.exists("outputs/model_results.rds")) "." else ".."
     model_results_path <- file.path(project_root, "outputs", "model_results.rds")
   }
+
+  delhi_areas <- c(
+    "Central Delhi", "North Delhi", "South Delhi", "East Delhi",
+    "West Delhi", "New Delhi", "South West Delhi", "North East Delhi"
+  )
+
+  append_synthetic_area_data <- function(df, area_values, source_seed = 42, sample_frac = 0.08) {
+    set.seed(source_seed)
+
+    if (!"delhi_area" %in% names(df)) {
+      df$delhi_area <- sample(area_values, nrow(df), replace = TRUE)
+    }
+
+    if (!"data_source" %in% names(df)) {
+      df$data_source <- "real"
+    }
+
+    numeric_cols <- names(df)[vapply(df, is.numeric, logical(1))]
+    protected_numeric <- c("hour", "month", "is_weekend")
+    perturb_cols <- setdiff(numeric_cols, protected_numeric)
+
+    synthetic_rows <- lapply(area_values, function(area_name) {
+      base <- df %>%
+        dplyr::slice_sample(prop = sample_frac, replace = TRUE)
+
+      for (col_name in perturb_cols) {
+        base[[col_name]] <- pmax(0, base[[col_name]] * (1 + rnorm(nrow(base), mean = 0, sd = 0.08)))
+      }
+
+      if ("timestamp" %in% names(base)) {
+        base$timestamp <- as.POSIXct(base$timestamp) + sample(seq(-72, 72, by = 1), nrow(base), replace = TRUE) * 3600
+      }
+
+      if ("date" %in% names(base)) {
+        base$date <- as.character(as.Date(base$timestamp))
+      }
+
+      if ("hour" %in% names(base)) {
+        base$hour <- lubridate::hour(base$timestamp)
+      }
+
+      if ("weekday" %in% names(base)) {
+        base$weekday <- weekdays(base$timestamp)
+      }
+
+      if ("month" %in% names(base)) {
+        base$month <- lubridate::month(base$timestamp)
+      }
+
+      if ("is_weekend" %in% names(base)) {
+        base$is_weekend <- ifelse(weekdays(base$timestamp) %in% c("Saturday", "Sunday"), 1, 0)
+      }
+
+      base$delhi_area <- area_name
+
+      if ("zone" %in% names(base)) {
+        base$zone <- area_name
+      }
+
+      if ("station_id" %in% names(base)) {
+        base$station_id <- paste0("Delhi_", gsub(" ", "_", area_name))
+      }
+
+      if ("building_type" %in% names(base)) {
+        base$building_type <- sample(c("Residential", "Commercial", "Industrial", "Mixed Use"), nrow(base), replace = TRUE)
+      }
+
+      base$data_source <- "synthetic"
+
+      common_cols <- intersect(names(base), names(df))
+      for (col_name in common_cols) {
+        target_class <- class(df[[col_name]])[1]
+        if (target_class == "character") {
+          base[[col_name]] <- as.character(base[[col_name]])
+        } else if (target_class == "numeric") {
+          base[[col_name]] <- as.numeric(base[[col_name]])
+        } else if (target_class == "integer") {
+          base[[col_name]] <- as.integer(base[[col_name]])
+        } else if (target_class == "logical") {
+          base[[col_name]] <- as.logical(base[[col_name]])
+        } else if (target_class == "POSIXct") {
+          base[[col_name]] <- as.POSIXct(base[[col_name]])
+        }
+      }
+
+      base
+    })
+
+    dplyr::bind_rows(df, dplyr::bind_rows(synthetic_rows))
+  }
+
+  traffic_clean$delhi_area <- ifelse(traffic_clean$zone == "Delhi", "Central Delhi", as.character(traffic_clean$zone))
+  air_quality_clean$delhi_area <- "Central Delhi"
+  energy_clean$delhi_area <- "New Delhi"
+
+  traffic_clean <- append_synthetic_area_data(traffic_clean, delhi_areas, source_seed = 42)
+  air_quality_clean <- append_synthetic_area_data(air_quality_clean, delhi_areas, source_seed = 43)
+  energy_clean <- append_synthetic_area_data(energy_clean, delhi_areas, source_seed = 44)
+
+  available_delhi_areas <- sort(unique(c(
+    as.character(traffic_clean$delhi_area),
+    as.character(air_quality_clean$delhi_area),
+    as.character(energy_clean$delhi_area)
+  )))
   
   # ==========================================
   # DYNAMIC FILTER UI ELEMENTS
@@ -66,9 +170,13 @@ server <- function(input, output, session) {
       dateRangeInput("traffic_date_range", "Date Range:",
                     start = min(traffic_clean$timestamp),
                     end = max(traffic_clean$timestamp)),
-      selectInput("traffic_zone", "Zone:",
+      selectInput("traffic_zone_filter", "Zone:",
                  choices = c("All", unique(traffic_clean$zone)),
-                 selected = "All")
+                 selected = "All"),
+      selectInput("traffic_area", "Delhi Area:",
+                 choices = c("All", available_delhi_areas),
+                 selected = "All"),
+      actionButton("apply_traffic_filters", "Search", icon = icon("search"), class = "btn-primary")
     )
   })
   
@@ -77,9 +185,13 @@ server <- function(input, output, session) {
       dateRangeInput("aqi_date_range", "Date Range:",
                     start = min(air_quality_clean$timestamp),
                     end = max(air_quality_clean$timestamp)),
-      selectInput("aqi_station", "Station:",
+      selectInput("aqi_station_filter", "Station:",
                  choices = c("All", unique(air_quality_clean$station_id)),
-                 selected = "All")
+                 selected = "All"),
+      selectInput("aqi_area", "Delhi Area:",
+                 choices = c("All", available_delhi_areas),
+                 selected = "All"),
+      actionButton("apply_aqi_filters", "Search", icon = icon("search"), class = "btn-warning")
     )
   })
   
@@ -88,10 +200,20 @@ server <- function(input, output, session) {
       dateRangeInput("energy_date_range", "Date Range:",
                     start = min(energy_clean$timestamp),
                     end = max(energy_clean$timestamp)),
-      selectInput("energy_building", "Building Type:",
+      selectInput("energy_building_filter", "Building Type:",
                  choices = c("All", unique(energy_clean$building_type)),
-                 selected = "All")
+                 selected = "All"),
+      selectInput("energy_area", "Delhi Area:",
+                 choices = c("All", available_delhi_areas),
+                 selected = "All"),
+      actionButton("apply_energy_filters", "Search", icon = icon("search"), class = "btn-success")
     )
+  })
+
+  observe({
+    updateSelectInput(session, "pred_area",
+                     choices = c("All", available_delhi_areas),
+                     selected = "All")
   })
   
   # ==========================================
@@ -199,18 +321,25 @@ server <- function(input, output, session) {
   # TRAFFIC TAB
   # ==========================================
   
-  traffic_filtered <- reactive({
+  traffic_filtered <- eventReactive(input$apply_traffic_filters, {
     req(input$traffic_date_range)
+
+    start_date <- as.POSIXct(input$traffic_date_range[1])
+    end_date <- as.POSIXct(input$traffic_date_range[2]) + 86400 - 1
+
     data <- traffic_clean %>%
-      filter(timestamp >= input$traffic_date_range[1] &
-            timestamp <= input$traffic_date_range[2])
-    
-    if (!is.null(input$traffic_zone) && input$traffic_zone != "All") {
-      data <- data %>% filter(zone == input$traffic_zone)
+      filter(timestamp >= start_date & timestamp <= end_date)
+
+    if (!is.null(input$traffic_zone_filter) && input$traffic_zone_filter != "All") {
+      data <- data %>% filter(zone == input$traffic_zone_filter)
     }
-    
+
+    if (!is.null(input$traffic_area) && input$traffic_area != "All") {
+      data <- data %>% filter(delhi_area == input$traffic_area)
+    }
+
     data
-  })
+  }, ignoreInit = FALSE)
   
   output$traffic_hourly <- renderPlotly({
     data <- traffic_filtered() %>%
@@ -224,7 +353,7 @@ server <- function(input, output, session) {
   })
   
   output$traffic_zone <- renderPlotly({
-    data <- traffic_clean %>%
+    data <- traffic_filtered() %>%
       group_by(zone, hour) %>%
       summarise(avg_vehicles = mean(vehicle_count, na.rm = TRUE), .groups = "drop")
     
@@ -234,7 +363,11 @@ server <- function(input, output, session) {
   })
   
   output$traffic_speed_volume <- renderPlotly({
-    data <- traffic_filtered() %>% sample_n(min(1000, nrow(traffic_filtered())))
+    filtered_data <- traffic_filtered()
+    if (nrow(filtered_data) == 0) {
+      return(plot_ly() %>% layout(title = "No data available for selected date range"))
+    }
+    data <- filtered_data %>% slice_sample(n = min(1000, nrow(filtered_data)))
     
     plot_ly(data, x = ~vehicle_count, y = ~average_speed, color = ~congestion_level,
            type = "scatter", mode = "markers", colors = c("green", "orange", "red")) %>%
@@ -243,7 +376,7 @@ server <- function(input, output, session) {
   })
   
   output$traffic_heatmap <- renderPlotly({
-    data <- traffic_clean %>%
+    data <- traffic_filtered() %>%
       mutate(weekday_short = lubridate::wday(timestamp, label = TRUE)) %>%
       group_by(hour, weekday_short) %>%
       summarise(avg_vehicles = mean(vehicle_count, na.rm = TRUE), .groups = "drop")
@@ -258,18 +391,25 @@ server <- function(input, output, session) {
   # AIR QUALITY TAB
   # ==========================================
   
-  aqi_filtered <- reactive({
+  aqi_filtered <- eventReactive(input$apply_aqi_filters, {
     req(input$aqi_date_range)
+
+    start_date <- as.POSIXct(input$aqi_date_range[1])
+    end_date <- as.POSIXct(input$aqi_date_range[2]) + 86400 - 1
+
     data <- air_quality_clean %>%
-      filter(timestamp >= input$aqi_date_range[1] &
-            timestamp <= input$aqi_date_range[2])
-    
-    if (!is.null(input$aqi_station) && input$aqi_station != "All") {
-      data <- data %>% filter(station_id == input$aqi_station)
+      filter(timestamp >= start_date & timestamp <= end_date)
+
+    if (!is.null(input$aqi_station_filter) && input$aqi_station_filter != "All") {
+      data <- data %>% filter(station_id == input$aqi_station_filter)
     }
-    
+
+    if (!is.null(input$aqi_area) && input$aqi_area != "All") {
+      data <- data %>% filter(delhi_area == input$aqi_area)
+    }
+
     data
-  })
+  }, ignoreInit = FALSE)
   
   output$current_aqi <- renderValueBox({
     aqi_val <- round(mean(aqi_filtered()$AQI, na.rm = TRUE), 1)
@@ -341,7 +481,7 @@ server <- function(input, output, session) {
   })
   
   output$aqi_station_plot <- renderPlotly({
-    data <- air_quality_clean %>%
+    data <- aqi_filtered() %>%
       group_by(station_id) %>%
       summarise(avg_aqi = mean(AQI, na.rm = TRUE))
     
@@ -355,18 +495,25 @@ server <- function(input, output, session) {
   # ENERGY TAB
   # ==========================================
   
-  energy_filtered <- reactive({
+  energy_filtered <- eventReactive(input$apply_energy_filters, {
     req(input$energy_date_range)
+
+    start_date <- as.POSIXct(input$energy_date_range[1])
+    end_date <- as.POSIXct(input$energy_date_range[2]) + 86400 - 1
+
     data <- energy_clean %>%
-      filter(timestamp >= input$energy_date_range[1] &
-            timestamp <= input$energy_date_range[2])
-    
-    if (!is.null(input$energy_building) && input$energy_building != "All") {
-      data <- data %>% filter(building_type == input$energy_building)
+      filter(timestamp >= start_date & timestamp <= end_date)
+
+    if (!is.null(input$energy_building_filter) && input$energy_building_filter != "All") {
+      data <- data %>% filter(building_type == input$energy_building_filter)
     }
-    
+
+    if (!is.null(input$energy_area) && input$energy_area != "All") {
+      data <- data %>% filter(delhi_area == input$energy_area)
+    }
+
     data
-  })
+  }, ignoreInit = FALSE)
   
   output$total_consumption <- renderValueBox({
     valueBox(
@@ -407,7 +554,7 @@ server <- function(input, output, session) {
   })
   
   output$energy_building_plot <- renderPlotly({
-    data <- energy_clean %>%
+    data <- energy_filtered() %>%
       group_by(building_type, hour) %>%
       summarise(avg_energy = mean(energy_consumption_kwh, na.rm = TRUE), .groups = "drop")
     
@@ -418,7 +565,7 @@ server <- function(input, output, session) {
   })
   
   output$energy_renewable_plot <- renderPlotly({
-    data <- energy_clean %>%
+    data <- energy_filtered() %>%
       group_by(building_type) %>%
       summarise(avg_renewable = mean(renewable_percent, na.rm = TRUE))
     
@@ -438,6 +585,20 @@ server <- function(input, output, session) {
                       type = "warning", duration = 5)
       return()
     }
+
+    traffic_baseline <- traffic_clean
+    aqi_baseline <- air_quality_clean
+    energy_baseline <- energy_clean
+
+    if (!is.null(input$pred_area) && input$pred_area != "All") {
+      traffic_baseline <- traffic_baseline %>% filter(delhi_area == input$pred_area)
+      aqi_baseline <- aqi_baseline %>% filter(delhi_area == input$pred_area)
+      energy_baseline <- energy_baseline %>% filter(delhi_area == input$pred_area)
+    }
+
+    if (nrow(traffic_baseline) == 0) traffic_baseline <- traffic_clean
+    if (nrow(aqi_baseline) == 0) aqi_baseline <- air_quality_clean
+    if (nrow(energy_baseline) == 0) energy_baseline <- energy_clean
     
     # Create input data frame
     pred_data <- data.frame(
@@ -448,18 +609,18 @@ server <- function(input, output, session) {
       humidity = input$pred_humidity,
       hour_sin = sin(2 * pi * input$pred_hour / 24),
       hour_cos = cos(2 * pi * input$pred_hour / 24),
-      vehicles_lag1 = mean(master_data$total_vehicles, na.rm = TRUE),
-      vehicles_lag24 = mean(master_data$total_vehicles, na.rm = TRUE),
-      vehicles_ma7 = mean(master_data$total_vehicles, na.rm = TRUE),
-      aqi_lag1 = mean(master_data$avg_AQI, na.rm = TRUE),
-      aqi_lag24 = mean(master_data$avg_AQI, na.rm = TRUE),
-      aqi_ma7 = mean(master_data$avg_AQI, na.rm = TRUE),
-      energy_lag1 = mean(master_data$total_energy_kwh, na.rm = TRUE),
-      energy_lag24 = mean(master_data$total_energy_kwh, na.rm = TRUE),
-      energy_ma7 = mean(master_data$total_energy_kwh, na.rm = TRUE),
-      avg_AQI = mean(master_data$avg_AQI, na.rm = TRUE),
-      total_vehicles = mean(master_data$total_vehicles, na.rm = TRUE),
-      avg_NO2 = mean(master_data$avg_NO2, na.rm = TRUE),
+      vehicles_lag1 = mean(traffic_baseline$vehicle_count, na.rm = TRUE),
+      vehicles_lag24 = mean(traffic_baseline$vehicle_count, na.rm = TRUE),
+      vehicles_ma7 = mean(traffic_baseline$vehicle_count, na.rm = TRUE),
+      aqi_lag1 = mean(aqi_baseline$AQI, na.rm = TRUE),
+      aqi_lag24 = mean(aqi_baseline$AQI, na.rm = TRUE),
+      aqi_ma7 = mean(aqi_baseline$AQI, na.rm = TRUE),
+      energy_lag1 = mean(energy_baseline$energy_consumption_kwh, na.rm = TRUE),
+      energy_lag24 = mean(energy_baseline$energy_consumption_kwh, na.rm = TRUE),
+      energy_ma7 = mean(energy_baseline$energy_consumption_kwh, na.rm = TRUE),
+      avg_AQI = mean(aqi_baseline$AQI, na.rm = TRUE),
+      total_vehicles = mean(traffic_baseline$vehicle_count, na.rm = TRUE),
+      avg_NO2 = mean(aqi_baseline$NO2, na.rm = TRUE),
       wind_speed = 10,
       precipitation_mm = 0
     )
