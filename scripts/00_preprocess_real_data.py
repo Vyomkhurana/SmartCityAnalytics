@@ -88,6 +88,15 @@ def parse_traffic_time_weekday(filepath):
                 })
     
     traffic_df = pd.DataFrame(traffic_expanded_list)
+    
+    # Add time-based features for R analysis
+    traffic_df['timestamp'] = pd.to_datetime(traffic_df['timestamp'])
+    traffic_df['hour'] = traffic_df['timestamp'].dt.hour
+    traffic_df['weekday'] = traffic_df['timestamp'].dt.day_name()
+    traffic_df['month'] = traffic_df['timestamp'].dt.month
+    traffic_df['date'] = traffic_df['timestamp'].dt.date
+    traffic_df['is_weekend'] = traffic_df['timestamp'].dt.weekday >= 5
+    
     print(f"  [OK] Expanded to {len(traffic_df)} hourly records")
     return traffic_df
 
@@ -188,6 +197,14 @@ def parse_air_quality(filepath):
     # Remove rows with null timestamps
     aqi_df = aqi_df[aqi_df["timestamp"].notna()]
     
+    # Add time-based features for R analysis
+    aqi_df['timestamp'] = pd.to_datetime(aqi_df['timestamp'])
+    aqi_df['hour'] = aqi_df['timestamp'].dt.hour
+    aqi_df['weekday'] = aqi_df['timestamp'].dt.day_name()
+    aqi_df['month'] = aqi_df['timestamp'].dt.month
+    aqi_df['date'] = aqi_df['timestamp'].dt.date
+    aqi_df['is_weekend'] = aqi_df['timestamp'].dt.weekday >= 5
+    
     print(f"  [OK] Parsed {len(aqi_df)} air quality records")
     return aqi_df
 
@@ -235,6 +252,14 @@ def parse_energy_regional(filepath):
     
     # Remove null timestamps
     energy_processed = energy_processed[energy_processed["timestamp"].notna()]
+    
+    # Add time-based features for R analysis
+    energy_processed['timestamp'] = pd.to_datetime(energy_processed['timestamp'])
+    energy_processed['hour'] = energy_processed['timestamp'].dt.hour
+    energy_processed['weekday'] = energy_processed['timestamp'].dt.day_name()
+    energy_processed['month'] = energy_processed['timestamp'].dt.month
+    energy_processed['date'] = energy_processed['timestamp'].dt.date
+    energy_processed['is_weekend'] = energy_processed['timestamp'].dt.weekday >= 5
     
     print(f"  [OK] Parsed {len(energy_processed)} energy records (Delhi/NR)")
     return energy_processed
@@ -323,6 +348,14 @@ def parse_noaa_isd(filepath):
         (weather_processed["humidity"] >= 0) & 
         (weather_processed["humidity"] <= 100)
     ]
+    
+    # Add time-based features for R analysis
+    weather_processed['timestamp'] = pd.to_datetime(weather_processed['timestamp'])
+    weather_processed['hour'] = weather_processed['timestamp'].dt.hour
+    weather_processed['weekday'] = weather_processed['timestamp'].dt.day_name()
+    weather_processed['month'] = weather_processed['timestamp'].dt.month
+    weather_processed['date'] = weather_processed['timestamp'].dt.date
+    weather_processed['is_weekend'] = weather_processed['timestamp'].dt.weekday >= 5
     
     print(f"  [OK] Parsed {len(weather_processed)} weather records (NOAA Delhi)")
     return weather_processed
