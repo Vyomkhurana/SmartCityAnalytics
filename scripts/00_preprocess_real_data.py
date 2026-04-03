@@ -102,23 +102,32 @@ def parse_air_quality(filepath):
         # Excel: read, skip metadata rows
         aqi_df = pd.read_excel(filepath, sheet_name=0, skiprows=5)
     else:
-        # CSV
-        aqi_df = pd.read_csv(filepath)
+        # CSV - CPCB format has metadata rows, find actual header row
+        with open(filepath, 'r') as f:
+            for i, line in enumerate(f):
+                if 'From Date' in line:
+                    skiprows = i
+                    break
+        aqi_df = pd.read_csv(filepath, skiprows=skiprows)
     
     # Standardize column names
     aqi_df.columns = aqi_df.columns.str.lower().str.strip()
     
-    # Map common column names
+    # Map common column names (handle CPCB variants)
     col_map = {
+        "from date": "timestamp",
         "date time": "timestamp",
         "datetime": "timestamp",
         "date": "timestamp",
-        "pm 2.5": "PM25",
         "pm2.5": "PM25",
+        "pm 2.5": "PM25",
+        "pm25": "PM25",
         "pm 10": "PM10",
         "pm10": "PM10",
         "no2": "NO2",
+        "no 2": "NO2",
         "o3": "O3",
+        "ozone": "O3",
         "aqi": "AQI",
         "station": "station_id",
         "stationname": "station_id",
@@ -327,9 +336,14 @@ def main():
         print("Loading and processing real data files...")
         print()
         
+        # Detect air quality file format (CSV or Excel)
+        aqi_csv = os.path.join(raw_data_dir, "air_quality_data.csv")
+        aqi_xlsx = os.path.join(raw_data_dir, "air_quality_data.xlsx")
+        aqi_file = aqi_csv if os.path.exists(aqi_csv) else aqi_xlsx
+        
         # Load all datasets
         traffic_df = parse_traffic_time_weekday(os.path.join(raw_data_dir, "traffic_data.csv"))
-        air_quality_df = parse_air_quality(os.path.join(raw_data_dir, "air_quality_data.xlsx"))
+        air_quality_df = parse_air_quality(aqi_file)
         energy_df = parse_energy_regional(os.path.join(raw_data_dir, "energy_data.csv"))
         weather_df = parse_noaa_isd(os.path.join(raw_data_dir, "weather_data.csv"))
         
