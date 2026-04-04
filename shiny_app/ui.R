@@ -16,13 +16,23 @@ ui <- dashboardPage(
   
   # Header
   dashboardHeader(
-    title = "Smart City Analytics",
+    title = tags$div(
+      class = "brand-wrap",
+      tags$span(class = "brand-main", "SmartCity"),
+      tags$span(class = "brand-accent", "Analytics")
+    ),
     titleWidth = 280
   ),
   
   # Sidebar
   dashboardSidebar(
-    width = 280,
+    width = 260,
+    tags$div(
+      class = "side-brand-mini",
+      tags$div(class = "mini-title", "Delhi City Analytics"),
+      tags$div(class = "mini-sub", "Traffic, Air Quality, Energy")
+    ),
+    tags$div(class = "sidebar-section-label", "Navigation"),
     sidebarMenu(
       id = "tabs",
       menuItem("Overview", tabName = "overview", icon = icon("dashboard")),
@@ -38,10 +48,249 @@ ui <- dashboardPage(
   # Body
   dashboardBody(
     tags$head(
+      tags$link(
+        rel = "stylesheet",
+        href = "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap"
+      ),
       tags$style(HTML("
-        .content-wrapper { background-color: #f4f6f9; }
-        .box { border-top: 3px solid #3c8dbc; }
-        .small-box { border-radius: 5px; }
+        :root {
+          --bg-main: #f7f8fa;
+          --bg-elevated: #ffffff;
+          --text-primary: #101828;
+          --text-muted: #4b5565;
+          --border-soft: #e5e7eb;
+          --accent: #0f766e;
+          --sidebar-bg: #fcfcfd;
+          --sidebar-hover: #f3f4f6;
+          --sidebar-active-bg: #e6f4f1;
+          --sidebar-active-border: #7ed7ca;
+        }
+
+        body, h1, h2, h3, h4, h5, p, .box-title, .main-header .logo, .sidebar-menu > li > a {
+          font-family: 'Manrope', sans-serif;
+        }
+
+        .content-wrapper,
+        .right-side {
+          background:
+            radial-gradient(circle at 12% 8%, rgba(15, 118, 110, 0.08), transparent 34%),
+            radial-gradient(circle at 90% 15%, rgba(2, 6, 23, 0.05), transparent 38%),
+            var(--bg-main);
+          color: var(--text-primary);
+        }
+
+        .wrapper {
+          min-height: 100vh;
+        }
+
+        .main-header .navbar {
+          background: #ffffff !important;
+          border-bottom: 1px solid #e5e7eb;
+        }
+
+        .main-header .logo {
+          background: #ffffff !important;
+          border-bottom: 1px solid #e5e7eb;
+          border-right: 1px solid #e5e7eb;
+          font-weight: 800;
+          letter-spacing: 0.2px;
+          text-align: left;
+          padding-left: 18px;
+        }
+
+        .brand-wrap {
+          display: flex;
+          align-items: baseline;
+          gap: 6px;
+        }
+
+        .brand-main {
+          color: #111827;
+        }
+
+        .brand-accent {
+          color: #0f766e;
+          font-weight: 800;
+        }
+
+        .main-sidebar,
+        .left-side {
+          background: #ffffff !important;
+          border-right: 1px solid #e6e9ef;
+        }
+
+        .sidebar {
+          padding-top: 12px;
+        }
+
+        .side-brand-mini {
+          margin: 4px 14px 14px 14px;
+          padding: 2px 4px 12px 4px;
+          border-bottom: 1px solid #edf0f4;
+        }
+
+        .mini-title {
+          color: #0f1720;
+          font-size: 17px;
+          font-weight: 800;
+          letter-spacing: 0.1px;
+          margin-bottom: 2px;
+        }
+
+        .mini-sub {
+          color: #667689;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .sidebar-section-label {
+          color: #8593a3;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          font-weight: 700;
+          margin: 8px 16px 10px 16px;
+        }
+
+        .sidebar-menu > li > a {
+          color: #273444 !important;
+          border-radius: 10px;
+          margin: 4px 10px;
+          padding: 11px 14px;
+          font-weight: 700;
+          border: 1px solid transparent;
+          background: transparent;
+          transition: all 0.2s ease;
+        }
+
+        .sidebar-menu > li > a > .fa {
+          width: 18px;
+          text-align: center;
+          margin-right: 10px;
+          color: #7a8da3;
+        }
+
+        .sidebar-menu > li:hover > a {
+          background: #f7f9fb !important;
+          color: #1f2a37 !important;
+          border-color: #e6ebf2;
+        }
+
+        .sidebar-menu > li.active > a {
+          background: #e9f7f5 !important;
+          color: #0e5f59 !important;
+          border-color: #b7e6e0;
+          box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+
+        .sidebar-menu > li.active > a > .fa,
+        .sidebar-menu > li:hover > a > .fa {
+          color: #0f766e;
+        }
+
+        .content {
+          padding: 20px;
+        }
+
+        .page-title {
+          margin: 0;
+          font-size: 30px;
+          font-weight: 800;
+          color: var(--text-primary);
+          letter-spacing: -0.5px;
+        }
+
+        .page-subtitle {
+          margin: 4px 0 18px 0;
+          color: var(--text-muted);
+          font-size: 14px;
+          font-weight: 500;
+        }
+
+        .box {
+          border-top: 0 !important;
+          border-radius: 16px;
+          background: var(--bg-elevated);
+          border: 1px solid var(--border-soft);
+          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.045);
+          overflow: hidden;
+        }
+
+        .box-header {
+          border-bottom: 1px solid #eef2f6;
+          padding: 14px 16px;
+          background: linear-gradient(180deg, #ffffff, #fbfcfd);
+        }
+
+        .box-title {
+          font-size: 15px;
+          font-weight: 700;
+          color: #132030;
+        }
+
+        .box-body {
+          padding: 14px 16px 16px 16px;
+        }
+
+        .small-box {
+          border-radius: 16px;
+          border: 1px solid var(--border-soft);
+          box-shadow: 0 8px 20px rgba(9, 30, 66, 0.06);
+          overflow: hidden;
+        }
+
+        .small-box h3,
+        .small-box p {
+          color: #ffffff;
+        }
+
+        .small-box .inner h3 {
+          font-size: 26px;
+          font-weight: 800;
+          letter-spacing: -0.4px;
+        }
+
+        .small-box .inner p {
+          font-weight: 600;
+        }
+
+        .btn {
+          border-radius: 10px !important;
+          font-weight: 700;
+          letter-spacing: 0.1px;
+        }
+
+        .form-control,
+        .selectize-input {
+          border-radius: 10px !important;
+          border-color: #d5dfe9 !important;
+          min-height: 42px;
+          font-weight: 500;
+        }
+
+        .irs--shiny .irs-bar,
+        .irs--shiny .irs-single,
+        .irs--shiny .irs-handle > i:first-child {
+          background: var(--accent);
+          border-top-color: var(--accent);
+          border-bottom-color: var(--accent);
+        }
+
+        .dataTables_wrapper .dataTables_filter input {
+          border-radius: 8px;
+          border: 1px solid #d5dfe9;
+          padding: 6px 10px;
+        }
+
+        @media (max-width: 992px) {
+          .page-title {
+            font-size: 24px;
+          }
+
+          .content {
+            padding: 12px;
+          }
+        }
       "))
     ),
     
@@ -51,7 +300,8 @@ ui <- dashboardPage(
       # ==========================================
       tabItem(
         tabName = "overview",
-        h2("Smart City Dashboard Overview"),
+        tags$h2(class = "page-title", "Smart City Dashboard Overview"),
+        tags$p(class = "page-subtitle", "Live city intelligence across traffic, air quality, and energy systems."),
         
         fluidRow(
           valueBoxOutput("total_records", width = 3),
@@ -92,7 +342,8 @@ ui <- dashboardPage(
       # ==========================================
       tabItem(
         tabName = "traffic",
-        h2("Traffic Analysis"),
+        tags$h2(class = "page-title", "Traffic Analysis"),
+        tags$p(class = "page-subtitle", "Analyze congestion, speed, and flow patterns by time window and Delhi area."),
         
         fluidRow(
           box(
@@ -134,7 +385,8 @@ ui <- dashboardPage(
       # ==========================================
       tabItem(
         tabName = "air_quality",
-        h2("Air Quality Monitoring"),
+        tags$h2(class = "page-title", "Air Quality Monitoring"),
+        tags$p(class = "page-subtitle", "Track AQI behavior, pollutant mix, and station-level distribution."),
         
         fluidRow(
           box(
@@ -178,7 +430,8 @@ ui <- dashboardPage(
       # ==========================================
       tabItem(
         tabName = "energy",
-        h2("Energy Management"),
+        tags$h2(class = "page-title", "Energy Management"),
+        tags$p(class = "page-subtitle", "Monitor load patterns, renewable adoption, and demand by building profile."),
         
         fluidRow(
           box(
@@ -221,7 +474,8 @@ ui <- dashboardPage(
       # ==========================================
       tabItem(
         tabName = "predictions",
-        h2("Predictive Analytics"),
+        tags$h2(class = "page-title", "Predictive Analytics"),
+        tags$p(class = "page-subtitle", "Generate scenario-based forecasts for selected Delhi areas."),
         
         fluidRow(
           box(
@@ -266,7 +520,8 @@ ui <- dashboardPage(
       # ==========================================
       tabItem(
         tabName = "data",
-        h2("Data Explorer"),
+        tags$h2(class = "page-title", "Data Explorer"),
+        tags$p(class = "page-subtitle", "Inspect source datasets and validate analytical assumptions."),
         
         fluidRow(
           box(
@@ -292,7 +547,8 @@ ui <- dashboardPage(
       # ==========================================
       tabItem(
         tabName = "about",
-        h2("About Smart City Analytics"),
+        tags$h2(class = "page-title", "About Smart City Analytics"),
+        tags$p(class = "page-subtitle", "Project context, methodology, and interpretation guidelines."),
         
         fluidRow(
           box(

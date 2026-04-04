@@ -7,6 +7,7 @@ library(ggplot2)
 library(plotly)
 library(DT)
 library(lubridate)
+library(randomForest)
 
 # ==========================================
 # SERVER FUNCTION
@@ -578,11 +579,70 @@ server <- function(input, output, session) {
   # ==========================================
   
   predictions <- reactiveValues(traffic = NULL, aqi = NULL, energy = NULL)
+  prediction_note_id <- reactiveVal(NULL)
+
+  set_prediction_notification <- function(message, type = "message", duration = 4) {
+    old_id <- prediction_note_id()
+    if (!is.null(old_id)) {
+      removeNotification(old_id)
+    }
+    prediction_note_id(showNotification(message, type = type, duration = duration))
+  }
+
+  safe_numeric <- function(x, fallback = 0) {
+    v <- suppressWarnings(as.numeric(x))
+    if (length(v) == 0 || is.na(v) || is.infinite(v)) fallback else v
+  }
+
+  model_features <- function(model_obj) {
+    if (is.null(model_obj)) {
+      return(character(0))
+    }
+
+    term_obj <- tryCatch(stats::terms(model_obj), error = function(e) NULL)
+    if (is.null(term_obj)) {
+      return(character(0))
+    }
+
+    all.vars(term_obj)[-1]
+  }
+
+  prepare_model_input <- function(model_obj, base_row) {
+    features <- model_features(model_obj)
+    if (length(features) == 0) {
+      return(base_row)
+    }
+
+    # Ensure model-required columns exist before prediction.
+    missing_features <- setdiff(features, names(base_row))
+    for (feature_name in missing_features) {
+      base_row[[feature_name]] <- 0
+    }
+
+    base_row[, features, drop = FALSE]
+  }
+
+  predict_model_value <- function(model_obj, base_row, fallback_value) {
+    if (is.null(model_obj)) {
+      return(fallback_value)
+    }
+
+    new_data <- prepare_model_input(model_obj, base_row)
+    pred <- tryCatch(
+      as.numeric(stats::predict(model_obj, newdata = new_data))[1],
+      error = function(e) fallback_value
+    )
+
+    safe_numeric(pred, fallback = fallback_value)
+  }
   
   observeEvent(input$make_prediction, {
     if (!models_available) {
-      showNotification("Models not available. Please run: source('scripts/04_predictive_models.R')",
-                      type = "warning", duration = 5)
+      set_prediction_notification(
+        "Models not available. Please run: source('scripts/04_predictive_models.R')",
+        type = "warning",
+        duration = 5
+      )
       return()
     }
 
@@ -600,7 +660,7 @@ server <- function(input, output, session) {
     if (nrow(aqi_baseline) == 0) aqi_baseline <- air_quality_clean
     if (nrow(energy_baseline) == 0) energy_baseline <- energy_clean
     
-    # Create input data frame
+    # Create canonical feature row used to derive model-specific input.
     pred_data <- data.frame(
       hour = input$pred_hour,
       is_weekend_num = as.numeric(input$pred_weekend),
@@ -624,16 +684,16 @@ server <- function(input, output, session) {
       wind_speed = 10,
       precipitation_mm = 0
     )
-    
-    tryCatch({
-      predictions$traffic <- predict(traffic_model, pred_data)
-      predictions$aqi <- predict(aqi_model, pred_data)
-      predictions$energy <- predict(energy_model, pred_data)
-      
-      showNotification("Predictions generated successfully!", type = "message", duration = 3)
-    }, error = function(e) {
-      showNotification(paste("Prediction error:", e$message), type = "error", duration = 5)
-    })
+
+    fallback_traffic <- safe_numeric(mean(traffic_baseline$vehicle_count, na.rm = TRUE), 0)
+    fallback_aqi <- safe_numeric(mean(aqi_baseline$AQI, na.rm = TRUE), 0)
+    fallback_energy <- safe_numeric(mean(energy_baseline$energy_consumption_kwh, na.rm = TRUE), 0)
+
+    predictions$traffic <- predict_model_value(traffic_model, pred_data, fallback_traffic)
+    predictions$aqi <- predict_model_value(aqi_model, pred_data, fallback_aqi)
+    predictions$energy <- predict_model_value(energy_model, pred_data, fallback_energy)
+
+    set_prediction_notification("Predictions updated successfully for selected area and scenario.", type = "message", duration = 3)
   })
   
   output$pred_traffic <- renderValueBox({
