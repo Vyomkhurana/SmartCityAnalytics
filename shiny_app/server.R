@@ -14,6 +14,29 @@ library(randomForest)
 # ==========================================
 
 server <- function(input, output, session) {
+  project_root <- if (file.exists("shiny_app/settings.R")) "." else ".."
+  settings_path <- file.path(project_root, "shiny_app", "settings.R")
+  if (file.exists(settings_path)) {
+    source(settings_path, local = TRUE)
+  }
+
+  if (!exists("app_settings", inherits = TRUE)) {
+    app_settings <- list(
+      delhi_areas = c(
+        "Central Delhi", "North Delhi", "South Delhi", "East Delhi",
+        "West Delhi", "New Delhi", "South West Delhi", "North East Delhi"
+      ),
+      synthetic = list(
+        enabled = TRUE,
+        sample_frac = 0.08,
+        noise_sd = 0.08,
+        max_time_shift_hours = 72,
+        seeds = list(traffic = 42, air_quality = 43, energy = 44)
+      ),
+      prediction = list(wind_speed_fallback = 10, precipitation_fallback = 0)
+    )
+  }
+
   # Fallback loading so server works even if app-level objects are not in scope.
   if (!exists("master_data", inherits = TRUE) ||
       !exists("traffic_clean", inherits = TRUE) ||
@@ -58,12 +81,11 @@ server <- function(input, output, session) {
     model_results_path <- file.path(project_root, "outputs", "model_results.rds")
   }
 
-  delhi_areas <- c(
-    "Central Delhi", "North Delhi", "South Delhi", "East Delhi",
-    "West Delhi", "New Delhi", "South West Delhi", "North East Delhi"
-  )
+  delhi_areas <- app_settings$delhi_areas
+  synthetic_cfg <- app_settings$synthetic
+  prediction_cfg <- app_settings$prediction
 
-  append_synthetic_area_data <- function(df, area_values, source_seed = 42, sample_frac = 0.08) {
+  append_synthetic_area_data <- function(df, area_values, source_seed = 42, sample_frac = 0.08, noise_sd = 0.08, max_time_shift_hours = 72) {
     set.seed(source_seed)
 
     if (!"delhi_area" %in% names(df)) {
@@ -83,11 +105,11 @@ server <- function(input, output, session) {
         dplyr::slice_sample(prop = sample_frac, replace = TRUE)
 
       for (col_name in perturb_cols) {
-        base[[col_name]] <- pmax(0, base[[col_name]] * (1 + rnorm(nrow(base), mean = 0, sd = 0.08)))
+        base[[col_name]] <- pmax(0, base[[col_name]] * (1 + rnorm(nrow(base), mean = 0, sd = noise_sd)))
       }
 
       if ("timestamp" %in% names(base)) {
-        base$timestamp <- as.POSIXct(base$timestamp) + sample(seq(-72, 72, by = 1), nrow(base), replace = TRUE) * 3600
+        base$timestamp <- as.POSIXct(base$timestamp) + sample(seq(-max_time_shift_hours, max_time_shift_hours, by = 1), nrow(base), replace = TRUE) * 3600
       }
 
       if ("date" %in% names(base)) {
@@ -121,7 +143,8 @@ server <- function(input, output, session) {
       }
 
       if ("building_type" %in% names(base)) {
-        base$building_type <- sample(c("Residential", "Commercial", "Industrial", "Mixed Use"), nrow(base), replace = TRUE)
+        existing_building_types <- unique(as.character(df$building_type))
+        base$building_type <- sample(existing_building_types, nrow(base), replace = TRUE)
       }
 
       base$data_source <- "synthetic"
@@ -148,13 +171,46 @@ server <- function(input, output, session) {
     dplyr::bind_rows(df, dplyr::bind_rows(synthetic_rows))
   }
 
-  traffic_clean$delhi_area <- ifelse(traffic_clean$zone == "Delhi", "Central Delhi", as.character(traffic_clean$zone))
-  air_quality_clean$delhi_area <- "Central Delhi"
-  energy_clean$delhi_area <- "New Delhi"
+  assign_area_by_group <- function(df, group_col, area_values) {
+    if (!group_col %in% names(df)) {
+      return(sample(area_values, nrow(df), replace = TRUE))
+    }
 
-  traffic_clean <- append_synthetic_area_data(traffic_clean, delhi_areas, source_seed = 42)
-  air_quality_clean <- append_synthetic_area_data(air_quality_clean, delhi_areas, source_seed = 43)
-  energy_clean <- append_synthetic_area_data(energy_clean, delhi_areas, source_seed = 44)
+    groups <- unique(as.character(df[[group_col]]))
+    mapping <- setNames(area_values[((seq_along(groups) - 1) %% length(area_values)) + 1], groups)
+    unname(mapping[as.character(df[[group_col]])])
+  }
+
+  traffic_clean$delhi_area <- ifelse(traffic_clean$zone == "Delhi", "Central Delhi", as.character(traffic_clean$zone))
+  air_quality_clean$delhi_area <- assign_area_by_group(air_quality_clean, "station_id", delhi_areas)
+  energy_clean$delhi_area <- assign_area_by_group(energy_clean, "building_type", delhi_areas)
+
+  if (isTRUE(synthetic_cfg$enabled)) {
+    traffic_clean <- append_synthetic_area_data(
+      traffic_clean,
+      delhi_areas,
+      source_seed = synthetic_cfg$seeds$traffic,
+      sample_frac = synthetic_cfg$sample_frac,
+      noise_sd = synthetic_cfg$noise_sd,
+      max_time_shift_hours = synthetic_cfg$max_time_shift_hours
+    )
+    air_quality_clean <- append_synthetic_area_data(
+      air_quality_clean,
+      delhi_areas,
+      source_seed = synthetic_cfg$seeds$air_quality,
+      sample_frac = synthetic_cfg$sample_frac,
+      noise_sd = synthetic_cfg$noise_sd,
+      max_time_shift_hours = synthetic_cfg$max_time_shift_hours
+    )
+    energy_clean <- append_synthetic_area_data(
+      energy_clean,
+      delhi_areas,
+      source_seed = synthetic_cfg$seeds$energy,
+      sample_frac = synthetic_cfg$sample_frac,
+      noise_sd = synthetic_cfg$noise_sd,
+      max_time_shift_hours = synthetic_cfg$max_time_shift_hours
+    )
+  }
 
   available_delhi_areas <- sort(unique(c(
     as.character(traffic_clean$delhi_area),
@@ -594,6 +650,13 @@ server <- function(input, output, session) {
     if (length(v) == 0 || is.na(v) || is.infinite(v)) fallback else v
   }
 
+  feature_mean <- function(df, col_name, fallback) {
+    if (!col_name %in% names(df)) {
+      return(fallback)
+    }
+    safe_numeric(mean(df[[col_name]], na.rm = TRUE), fallback)
+  }
+
   model_features <- function(model_obj) {
     if (is.null(model_obj)) {
       return(character(0))
@@ -681,8 +744,8 @@ server <- function(input, output, session) {
       avg_AQI = mean(aqi_baseline$AQI, na.rm = TRUE),
       total_vehicles = mean(traffic_baseline$vehicle_count, na.rm = TRUE),
       avg_NO2 = mean(aqi_baseline$NO2, na.rm = TRUE),
-      wind_speed = 10,
-      precipitation_mm = 0
+      wind_speed = feature_mean(master_data, "wind_speed", prediction_cfg$wind_speed_fallback),
+      precipitation_mm = feature_mean(master_data, "precipitation_mm", prediction_cfg$precipitation_fallback)
     )
 
     fallback_traffic <- safe_numeric(mean(traffic_baseline$vehicle_count, na.rm = TRUE), 0)
