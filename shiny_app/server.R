@@ -81,6 +81,8 @@ server <- function(input, output, session) {
     model_results_path <- file.path(project_root, "outputs", "model_results.rds")
   }
 
+  processed_data_dir <- file.path(project_root, "data", "processed")
+
   delhi_areas <- app_settings$delhi_areas
   synthetic_cfg <- app_settings$synthetic
   prediction_cfg <- app_settings$prediction
@@ -271,6 +273,89 @@ server <- function(input, output, session) {
     updateSelectInput(session, "pred_area",
                      choices = c("All", available_delhi_areas),
                      selected = "All")
+  })
+
+  upload_status <- reactiveVal("No uploaded dataset applied yet.")
+
+  read_and_validate_csv <- function(file_input, required_cols, dataset_label) {
+    if (is.null(file_input) || is.null(file_input$datapath) || !file.exists(file_input$datapath)) {
+      return(NULL)
+    }
+
+    df <- tryCatch(read.csv(file_input$datapath), error = function(e) NULL)
+    if (is.null(df)) {
+      stop(paste(dataset_label, "could not be read as CSV."))
+    }
+
+    missing_cols <- setdiff(required_cols, names(df))
+    if (length(missing_cols) > 0) {
+      stop(paste(dataset_label, "is missing required columns:", paste(missing_cols, collapse = ", ")))
+    }
+
+    df
+  }
+
+  output$upload_status <- renderText({
+    upload_status()
+  })
+
+  observeEvent(input$apply_uploaded_data, {
+    master_required <- c("timestamp", "date", "total_vehicles", "avg_AQI", "total_energy_kwh")
+    traffic_required <- c("timestamp", "zone", "hour", "vehicle_count", "average_speed", "congestion_level")
+    aqi_required <- c("timestamp", "station_id", "hour", "AQI", "PM25", "PM10", "NO2", "O3")
+    energy_required <- c("timestamp", "building_type", "hour", "energy_consumption_kwh", "renewable_percent", "cost_usd")
+
+    any_uploaded <- !is.null(input$upload_master_csv) || !is.null(input$upload_traffic_csv) ||
+      !is.null(input$upload_aqi_csv) || !is.null(input$upload_energy_csv)
+
+    if (!any_uploaded) {
+      showNotification("Please select at least one CSV file to apply.", type = "warning", duration = 4)
+      return()
+    }
+
+    tryCatch({
+      if (!dir.exists(processed_data_dir)) {
+        dir.create(processed_data_dir, recursive = TRUE)
+      }
+
+      applied_sets <- c()
+
+      uploaded_master <- read_and_validate_csv(input$upload_master_csv, master_required, "Master Data")
+      if (!is.null(uploaded_master)) {
+        uploaded_master$timestamp <- as.POSIXct(uploaded_master$timestamp)
+        uploaded_master$date <- as.Date(uploaded_master$date)
+        saveRDS(uploaded_master, file.path(processed_data_dir, "master_data.rds"))
+        applied_sets <- c(applied_sets, "Master Data")
+      }
+
+      uploaded_traffic <- read_and_validate_csv(input$upload_traffic_csv, traffic_required, "Traffic")
+      if (!is.null(uploaded_traffic)) {
+        uploaded_traffic$timestamp <- as.POSIXct(uploaded_traffic$timestamp)
+        write.csv(uploaded_traffic, file.path(processed_data_dir, "traffic_clean.csv"), row.names = FALSE)
+        applied_sets <- c(applied_sets, "Traffic")
+      }
+
+      uploaded_aqi <- read_and_validate_csv(input$upload_aqi_csv, aqi_required, "Air Quality")
+      if (!is.null(uploaded_aqi)) {
+        uploaded_aqi$timestamp <- as.POSIXct(uploaded_aqi$timestamp)
+        write.csv(uploaded_aqi, file.path(processed_data_dir, "air_quality_clean.csv"), row.names = FALSE)
+        applied_sets <- c(applied_sets, "Air Quality")
+      }
+
+      uploaded_energy <- read_and_validate_csv(input$upload_energy_csv, energy_required, "Energy")
+      if (!is.null(uploaded_energy)) {
+        uploaded_energy$timestamp <- as.POSIXct(uploaded_energy$timestamp)
+        write.csv(uploaded_energy, file.path(processed_data_dir, "energy_clean.csv"), row.names = FALSE)
+        applied_sets <- c(applied_sets, "Energy")
+      }
+
+      upload_status(paste("Applied:", paste(applied_sets, collapse = ", "), "| Reloading dashboard..."))
+      showNotification("Uploaded dataset(s) validated and applied. Reloading dashboard.", type = "message", duration = 3)
+      session$reload()
+    }, error = function(e) {
+      upload_status(paste("Upload failed:", e$message))
+      showNotification(paste("Upload failed:", e$message), type = "error", duration = 6)
+    })
   })
   
   # ==========================================
