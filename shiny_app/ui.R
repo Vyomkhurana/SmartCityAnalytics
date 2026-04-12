@@ -522,6 +522,48 @@ ui <- dashboardPage(
         tabName = "data",
         tags$h2(class = "page-title", "Data Explorer"),
         tags$p(class = "page-subtitle", "Inspect source datasets and validate analytical assumptions."),
+
+        fluidRow(
+          box(
+            title = "Upload Your Datasets", status = "primary", solidHeader = TRUE,
+            width = 12,
+            p("Upload CSV files matching the project schema. You can upload one, many, or all datasets."),
+            fluidRow(
+              column(6,
+                fileInput("upload_master_csv", "Master Data CSV",
+                          accept = c(".csv"),
+                          placeholder = "Choose master_data CSV"),
+                tags$small("Required: timestamp, date, total_vehicles, avg_AQI, total_energy_kwh")
+              ),
+              column(6,
+                fileInput("upload_traffic_csv", "Traffic CSV",
+                          accept = c(".csv"),
+                          placeholder = "Choose traffic CSV"),
+                tags$small("Required: timestamp, zone, hour, vehicle_count, average_speed, congestion_level")
+              )
+            ),
+            br(),
+            fluidRow(
+              column(6,
+                fileInput("upload_aqi_csv", "Air Quality CSV",
+                          accept = c(".csv"),
+                          placeholder = "Choose air_quality CSV"),
+                tags$small("Required: timestamp, station_id, hour, AQI, PM25, PM10, NO2, O3")
+              ),
+              column(6,
+                fileInput("upload_energy_csv", "Energy CSV",
+                          accept = c(".csv"),
+                          placeholder = "Choose energy CSV"),
+                tags$small("Required: timestamp, building_type, hour, energy_consumption_kwh, renewable_percent, cost_usd")
+              )
+            ),
+            br(),
+            actionButton("apply_uploaded_data", "Apply Uploaded Dataset(s)",
+                         class = "btn-success", icon = icon("upload")),
+            tags$span(" "),
+            textOutput("upload_status", inline = TRUE)
+          )
+        ),
         
         fluidRow(
           box(
