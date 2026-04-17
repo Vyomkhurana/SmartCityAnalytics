@@ -1,4 +1,4 @@
-# Smart City Analytics - Server Logic
+  # Smart City Analytics - Server Logic
 # Server-side functionality for the Shiny dashboard
 
 library(shiny)
@@ -7,7 +7,7 @@ library(ggplot2)
 library(plotly)
 library(DT)
 library(lubridate)
-library(randomForest)
+library(xgboost)
 
 # ==========================================
 # SERVER FUNCTION
@@ -440,21 +440,39 @@ server <- function(input, output, session) {
   })
   
   output$overview_stats <- renderTable({
+    busiest_traffic_hour <- traffic_clean %>%
+      group_by(hour) %>%
+      summarise(avg_vehicles = mean(vehicle_count, na.rm = TRUE), .groups = "drop") %>%
+      slice_max(avg_vehicles, n = 1, with_ties = FALSE) %>%
+      pull(hour)
+
+    worst_aqi_hour <- air_quality_clean %>%
+      group_by(hour) %>%
+      summarise(avg_aqi = mean(AQI, na.rm = TRUE), .groups = "drop") %>%
+      slice_max(avg_aqi, n = 1, with_ties = FALSE) %>%
+      pull(hour)
+
+    peak_energy_hour <- energy_clean %>%
+      group_by(hour) %>%
+      summarise(avg_energy = mean(energy_consumption_kwh, na.rm = TRUE), .groups = "drop") %>%
+      slice_max(avg_energy, n = 1, with_ties = FALSE) %>%
+      pull(hour)
+
+    avg_temperature <- if ("temperature" %in% names(master_data)) {
+      round(mean(master_data$temperature, na.rm = TRUE), 1)
+    } else {
+      NA_real_
+    }
+
     data.frame(
       Metric = c("Date Range", "Peak Traffic Hour", "Worst AQI Hour", 
                 "Peak Energy Hour", "Avg Temperature"),
       Value = c(
         paste(min(master_data$date), "to", max(master_data$date)),
-        paste0(master_data %>% group_by(hour) %>% 
-                summarise(avg = mean(total_vehicles, na.rm = TRUE)) %>%
-                slice_max(avg, n = 1) %>% pull(hour), ":00"),
-        paste0(master_data %>% group_by(hour) %>%
-                summarise(avg = mean(avg_AQI, na.rm = TRUE)) %>%
-                slice_max(avg, n = 1) %>% pull(hour), ":00"),
-        paste0(master_data %>% group_by(hour) %>%
-                summarise(avg = mean(total_energy_kwh, na.rm = TRUE)) %>%
-                slice_max(avg, n = 1) %>% pull(hour), ":00"),
-        paste0(round(mean(master_data$temperature, na.rm = TRUE), 1), " C")
+        paste0(busiest_traffic_hour, ":00"),
+        paste0(worst_aqi_hour, ":00"),
+        paste0(peak_energy_hour, ":00"),
+        paste0(avg_temperature, " C")
       )
     )
   }, striped = TRUE, hover = TRUE, bordered = TRUE)
@@ -747,6 +765,18 @@ server <- function(input, output, session) {
       return(character(0))
     }
 
+    if (!is.null(model_obj$feature_names)) {
+      return(model_obj$feature_names)
+    }
+
+    if (!is.null(model_obj$xNames)) {
+      return(model_obj$xNames)
+    }
+
+    if (!is.null(model_obj$finalModel) && !is.null(model_obj$finalModel$xNames)) {
+      return(model_obj$finalModel$xNames)
+    }
+
     term_obj <- tryCatch(stats::terms(model_obj), error = function(e) NULL)
     if (is.null(term_obj)) {
       return(character(0))
@@ -776,10 +806,18 @@ server <- function(input, output, session) {
     }
 
     new_data <- prepare_model_input(model_obj, base_row)
-    pred <- tryCatch(
-      as.numeric(stats::predict(model_obj, newdata = new_data))[1],
-      error = function(e) fallback_value
-    )
+
+    pred <- if (!is.null(model_obj$booster)) {
+      tryCatch(
+        as.numeric(predict(model_obj$booster, as.matrix(new_data)))[1],
+        error = function(e) fallback_value
+      )
+    } else {
+      tryCatch(
+        as.numeric(stats::predict(model_obj, newdata = new_data))[1],
+        error = function(e) fallback_value
+      )
+    }
 
     safe_numeric(pred, fallback = fallback_value)
   }
