@@ -31,7 +31,7 @@ required_packages <- c(
   # Modeling
   "caret",
   "forecast",
-  "randomForest",
+  "xgboost",
   "e1071",
   "Metrics",
   
